@@ -130,6 +130,10 @@ async function showStagedChart() {
   // Phase two for zip/folder imports (no-op for direct loads where the chart was already built)
   try { await player.finishLoadChart(); }
   catch (e) { player.showStatus('谱面解析失败: ' + (e && e.message || e)); return; }
+  // Direct-load paths (.json/.rpe/.pec/.pcmy) have no chart assets to preload, but the built-in
+  // note/hold/hit-fx textures still power every chart: await them (idempotent, cached) so the play
+  // screen never starts with untextured notes. Original fire-and-forget bootstrap() call is unblocked.
+  try { await player.loadBuiltinPack(); } catch (e) { /* Ignore */ }
   await player.waitBackground();
   const loadBg = document.getElementById('load-bg');
   const bgSrc = (player.blurredBg && player.blurredBg.src) || (player.backgroundImage && player.backgroundImage.src);

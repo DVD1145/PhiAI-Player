@@ -87,6 +87,24 @@ this.holdParts = await this.splitHoldTextures(this.noteTextures.hold, result.hol
   }
 },
 async loadBuiltinPack() {
+  // Preloading contract: safe to call at any time and idempotent. bootstrap.js fires it at
+  // startup without awaiting; every chart-load path awaits the same cached promise before
+  // play starts, so note/hold/hit-fx textures are always warm by the first frame. A user
+  // resource pack takes precedence and leaves the built-in pack untouched.
+  if (this._builtinPackPromise) return this._builtinPackPromise;
+  if (this.resourcePack && this.useResourcePack) {
+    this._builtinPackPromise = Promise.resolve(false);
+    return this._builtinPackPromise;
+  }
+  this._builtinPackPromise = this._doLoadBuiltinPack().catch((e) => {
+    console.error('[Player] 内置资源包加载失败:', e);
+    // Allow a later retry (e.g. the page was later served over HTTP with real assets)
+    this._builtinPackPromise = null;
+    return false;
+  });
+  return this._builtinPackPromise;
+},
+async _doLoadBuiltinPack() {
   const R = (typeof window !== 'undefined' && window.BUILTIN_RESOURCES) || null;
   const DIR = (typeof window !== 'undefined' && window.AIRE_BUILTIN_DIR) || null;
   if ((!R && !DIR) || this.builtinPackLoaded) return false;

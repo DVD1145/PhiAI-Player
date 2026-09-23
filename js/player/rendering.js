@@ -199,17 +199,47 @@ drawLineDebug(jl) {
   ctx.fill();
   ctx.restore();
 },
-tintImage(img, w, h, r, g, b) {
+tintImage(img, w, h, r, g, b, forceCache) {
   if (r >= 255 && g >= 255 && b >= 255) return img;
   w = Math.max(1, w | 0); h = Math.max(1, h | 0);
-  // Cache medium textures too (up to ~400k px) so a tinted line texture of e.g. 512x512
-  // (drawn at 583x583) is not re-tinted every frame. A total pixel budget bounds memory.
-  const canCache = !!(img.src || img.currentSrc) && w * h <= 400000;
+  // Cache large textured line tints too. Texture lines are usually big art (up to 2-4k so the
+  // display-sized tint hits ~18M px), and the colorEvents gradient changes per frame, so the old
+  // 400k-px cap plus a precise-color cache key meant such lines rebuilt the offscreen tint at
+  // 4 canvas passes per frame -- the visible 'image appears -> stutter' hitch. Three fixes:
+  //   1) quantize the tint color (per-channel step 2, visually identical) so adjacent color
+  //      values share one cached canvas instead of never hitting.
+  //   2) raise the pixel cap/budget so large art actually gets cached (warmImages pre-fills the
+  //      first-seen colors), and evict the smallest entries first so a few ~18Mpx glow art tints
+  //      survive until the picture actually shows instead of being thrown out by cheap entries.
+  //   3) very large tints (an 18Mpx out canvas is a 68MB copy) skip the cache when a runtime
+  //      colorEvent fade changes the color every frame -- they build once into the shared scratch
+  //      and are drawn immediately; only the pre-warmed first-seen colors are force-cached.
+  const q = (v) => v >= 255 ? 255 : Math.min(255, Math.round(v / 2) * 2);
+  const qr = q(r), qg = q(g), qb = q(b);
+  if (qr >= 255 && qg >= 255 && qb >= 255) return img;
+  const px = w * h;
+  // Cache lookup must not be gated by a pixel cap: GlowLine1 art (4000x2250) scaled to a 1920-wide
+  // draw size is ~32M px, i.e. above any fixed cap, yet it is the very line whose first frame the
+  // user noticed hitching. The 80Mpx budget below is the real memory bound; a cap on the lookup
+  // side silently disabled caching for exactly the hurtful tints (warmImages pre-builds them, but
+  // the runtime hit never happened -> 'preprocessing is a no-op').
+  const canCache = !!(img.src || img.currentSrc);
   let key, cache;
-  if (canCache) {
+  // Tint canvases are big (GlowLine1 ~32Mpx = ~128MB each). 80Mpx was too tight to hold the
+  // pre-warmed key colors *and* a runtime gradient while still having headroom, so pre-warmed
+  // entries were evicted before they were ever drawn -> the 'image appears' frame still rebuilt
+  // a 32Mpx tint. 160Mpx (a handful of art tints, released on chart switch) leaves that headroom.
+  const TINT_PX_BUDGET = 160000000;
+  if (canCache || forceCache) {
     cache = this._tintCache || (this._tintCache = new Map());
-    key = (img.src || img.currentSrc) + '|' + w + 'x' + h + '|' + (r | 0) + ',' + (g | 0) + ',' + (b | 0);
-    if (cache.has(key)) return cache.get(key);
+    key = (img.src || img.currentSrc) + '|' + w + 'x' + h + '|' + qr + ',' + qg + ',' + qb;
+    const hit = cache.get(key);
+    if (hit) {
+      if (cache.size > 1 && cache.keys().next().value !== key) {
+        cache.delete(key); cache.set(key, hit);
+      }
+      return hit.cv;
+    }
   }
   if (!this._tintCv) this._tintCv = document.createElement('canvas');
   if (!this._tintAux) this._tintAux = document.createElement('canvas');
@@ -222,18 +252,34 @@ tintImage(img, w, h, r, g, b) {
   tc.clearRect(0, 0, w, h);
   tc.drawImage(img, 0, 0, w, h);
   tc.globalCompositeOperation = 'multiply';
-  tc.fillStyle = 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+  tc.fillStyle = 'rgb(' + qr + ',' + qg + ',' + qb + ')';
   tc.fillRect(0, 0, w, h);
   tc.globalCompositeOperation = 'destination-in';
   tc.drawImage(aux, 0, 0);
   tc.globalCompositeOperation = 'source-over';
-  if (!canCache) return cv;
-  if (cache.size > 300 || (this._tintPx || 0) + w * h > 16000000) { cache.clear(); this._tintPx = 0; }
+  // Store on a miss unless the tint is a multi-Mpx art piece whose colorEvent is changing every
+  // frame: a per-frame gradient produces a new key each frame and copying a 32Mpx out canvas per
+  // frame is slower than re-using the shared scratch. Small/medium tints are cheap to copy and
+  // greatly benefit re-colored lines, so cache those. Pre-warmed large tints were already stored
+  // by warmImages (forceCache); the budget/LRU still bound memory (evict-smallest-first keeps the
+  // big art tints that are still on screen).
+  if (!forceCache && px > 2000000) return cv;
+  const evict = () => {
+    let minKey = null, minPx = Infinity;
+    for (const [mk, mv] of cache) { if (mv.px < minPx) { minPx = mv.px; minKey = mk; } }
+    if (minKey === null) return false;
+    cache.delete(minKey);
+    this._tintPx -= minPx;
+    return true;
+  };
+  while (cache.size > 0 && (cache.size > 300 || (this._tintPx || 0) + px > TINT_PX_BUDGET)) {
+    if (!evict()) break;
+  }
   const out = document.createElement('canvas');
   out.width = w; out.height = h;
   out.getContext('2d').drawImage(cv, 0, 0);
-  cache.set(key, out);
-  this._tintPx = (this._tintPx || 0) + w * h;
+  cache.set(key, { cv: out, px: px });
+  this._tintPx = (this._tintPx || 0) + px;
   return out;
 },
 drawJudgeLine(jl) {
@@ -320,6 +366,9 @@ drawNotesOnLine(jl, beat, filter) {
   const lb = beat / (jl.bpmFactor || 1);
   const [lineSX, lineSY] = this.judgeLineToScreen(jl);
   const angleRad = jl.rotation * Math.PI / 180;
+  // Screen-culling rotation trig is constant for the whole line: compute it once here instead
+  // of once per note inside the loop (the cull check runs for every note every frame)
+  const __cosA = Math.cos(angleRad), __sinA = Math.sin(angleRad);
   ctx.save();
   ctx.translate(lineSX, lineSY);
   ctx.rotate(angleRad);
@@ -391,7 +440,6 @@ drawNotesOnLine(jl, beat, filter) {
     // which is exactly the transform the drawing code applies. Cull against the viewport
     // rectangle inflated by cullM, so off-centre judge lines (high posY) never drop notes
     // that are actually on screen. All coordinates are CSS px -> zoom-independent.
-    const __cosA = Math.cos(angleRad), __sinA = Math.sin(angleRad);
     // x offset of the note from the line centre
     const __cullCX = lx;
     // y offset of the note's head from the line centre

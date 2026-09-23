@@ -1,5 +1,17 @@
 // PhiAI-Player || js/player/ui.js
 // EnhancedRPEPlayer instance methods (updateFileStatus, showPauseOverlay, hidePauseOverlay, retryChart, backToMenu, updateTitleAndDifficulty, startUIEntrance, updateUI, updateMissingBadge) attached to the prototype.
+// updateUI runs every frame; the uiMap (and its pre-flattened entries) are constants hoisted out of
+// the method so the per-frame call does not re-allocate the object plus an Object.entries array.
+const __UI_MAP = {
+  pause: { key: 'pause', anchor: 'top-left' },
+  combonumber: { key: 'combonumber', anchor: 'center' },
+  combo: { key: 'combo', anchor: 'center' },
+  score: { key: 'score', anchor: 'top-right' },
+  bar: { key: 'bar', anchor: 'center-left' },
+  name: { key: 'name', anchor: 'bottom-left' },
+  level: { key: 'level', anchor: 'bottom-right' },
+};
+const __UI_MAP_ENTRIES = Object.entries(__UI_MAP);
 Object.assign(EnhancedRPEPlayer.prototype, {
   updateFileStatus(name, loaded, msg = '') {
   const src = this.files || this.chartFiles;
@@ -49,17 +61,7 @@ startUIEntrance(delay = 0) {
   this.uiEntrance = { start: performance.now() + delay, duration: 1000, dist: window.innerHeight, dir: dir };
 },
 updateUI() {
-  const uiMap = {
-    pause: { key: 'pause', anchor: 'top-left' },
-    combonumber: { key: 'combonumber', anchor: 'center' },
-    combo: { key: 'combo', anchor: 'center' },
-    score: { key: 'score', anchor: 'top-right' },
-    bar: { key: 'bar', anchor: 'center-left' },
-    name: { key: 'name', anchor: 'bottom-left' },
-    level: { key: 'level', anchor: 'bottom-right' },
-  };
-
-  for (const [key, info] of Object.entries(uiMap)) {
+  for (const [key, info] of __UI_MAP_ENTRIES) {
     const el = this.uiElements[key];
     if (!el) continue;
     const defaultPos = this.defaultPositions[key];

@@ -133,6 +133,9 @@ async finishLoadChart() {
   this.updateTitleAndDifficulty();
   this.updateScoreDisplay();
   this.updateAutoplayStatus();
+  // Load chart image assets (image events / line textures) and warm them, and make sure the
+  // built-in note/hold/hit-fx textures are ready too so the first frames never draw untextured.
+  await this.loadBuiltinPack();
   await this.preloadHitsounds();
   await this.loadImageEventsFromZip();
 },
@@ -209,6 +212,7 @@ async loadPEZ(pezResult) {
     this.loadChart(pezResult.chart); this.setupBGA(this.extraVideos);
   }
   this.preloadHitsounds();
+  await this.loadBuiltinPack();
   await this.loadImageEventsFromZip();
   this.updateTitleAndDifficulty();
   this.updateScoreDisplay();
@@ -236,6 +240,10 @@ cleanup() {
   this.unlockVideoFile = null;
   this.infoOffsetSec = 0;
   this._hasInfoOffset = false;
+  // Drop the tint cache geometry (its key embeds the image src, which is revoked on the next
+  // chart) and reset the pixel ledger so the next song starts with a clean tint cache.
+  if (this._tintCache) { this._tintCache.clear(); this._tintCache = null; }
+  this._tintPx = 0;
   this.lyricLines = null;
   this._lyricIdx = -1;
   this._lyricSlot = null;
@@ -360,6 +368,7 @@ const meta = chartData.META || {};
   this.updateTitleAndDifficulty();
   this.updateScoreDisplay();
   this.updateAutoplayStatus();
+  await this.loadBuiltinPack();
   await this.preloadHitsounds();
   await this.loadImageEventsFromZip();
   return true;
@@ -479,15 +488,23 @@ async loadImageEventsFromZip() {
   await this.warmImages();
 },
 async warmImages() {
-  const cv = this._warmCv || (this._warmCv = document.createElement('canvas'));
-  const wctx = cv.getContext('2d');
+  // GPU-texture warm-up lives on the MAIN canvas context, not an off-screen scratch: Chrome keys
+  // the decoded-bitmap -> GPU-texture cache by the destination context, so drawing images only to
+  // _warmCv left the very first ctx.drawImage(img) on the visible canvas to pay the full upload
+  // -> '图片出现时卡一小帧' regardless of any preprocessing. Draw once here under the default
+  // transform, then clear, so the first real frame reuses the already-uploaded texture.
+  const ctx = this.ctx;
   const warm = (img) => {
-    if (!img || !img.width || !img.height || !img.complete) return;
-    if (cv.width < img.width) cv.width = img.width;
-    if (cv.height < img.height) cv.height = img.height;
-    wctx.clearRect(0, 0, img.width, img.height);
-    wctx.drawImage(img, 0, 0);
-    wctx.clearRect(0, 0, 0, 0);
+    if (!img || !img.width || !img.height) return;
+    if (typeof img.complete === 'boolean' && !img.complete) return;
+    if (!ctx || !ctx.canvas || !ctx.canvas.width || !ctx.canvas.height) return;
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    } catch (e) { /* Ignore */ }
   };
   for (const k in this.imageEventTextures) warm(this.imageEventTextures[k]);
   for (const k in this.lineTextures) warm(this.lineTextures[k]);
@@ -502,19 +519,61 @@ async warmImages() {
   if (this.holdPartsMH) { warm(this.holdPartsMH.head); warm(this.holdPartsMH.body); warm(this.holdPartsMH.tail); }
   if (this.holdPartsMHF) { warm(this.holdPartsMHF.head); warm(this.holdPartsMHF.body); warm(this.holdPartsMHF.tail); }
   // Pre-compute the multiply tint for every in-chart judge-line texture at its draw size.
+  // jl.color is only interpolated during play (playback.js), so do not rely on it here: evaluate
+  // the event colors directly. Texture lines with colorEvents are almost always big art and a tint
+  // rebuilds 4 full-size canvas passes, so building the colors now moves that cost into the loading
+  // screen instead of the first frame the picture appears on. Small/medium textures get every
+  // discrete color pre-built (covers the whole gradient cheaply); very large textures get only the
+  // first-seen color so the loading page does not grind through dozens of ~72MB tint canvases.
   const baseW = this.width || 1350;
   const lines = this.chart && this.chart.judgeLineList;
   if (baseW && lines) {
+    const qv = (v) => v >= 255 ? 255 : Math.min(255, Math.round(v / 2) * 2);
+    const qk = (c) => `${qv(c[0])},${qv(c[1])},${qv(c[2])}`;
+    // Aggregate every distinct event color per (texture, draw size): many textured lines share one
+    // texture (GlowLine1/omega/by are used by several lines), so collecting line-by-line and then
+    // pre-warming duplicates would waste loading time. Cache keys are (src|size|color), so one
+    // pre-built tint covers all lines that share the same art and color.
+    const perTex = new Map();
     for (const jl of lines) {
       if (jl.isGif) continue;
-      const tex = (jl.texture && this.lineTextures) ? (this.lineTextures[jl.texture] || this.lineTextures[this.assetKey(jl.texture)]) : null;
+      if (!(jl.texture && this.lineTextures)) continue;
+      const tex = this.lineTextures[jl.texture] || this.lineTextures[this.assetKey(jl.texture)];
       if (!tex || !tex.width || !tex.complete) continue;
+      const ce = jl.colorEvents || [];
+      if (!ce.length) continue;
       const imgW = Math.max(1, tex.width * (baseW / 1350));
       const imgH = Math.max(1, tex.height * (baseW / 1350));
-      const col = (jl.colorEvents && jl.colorEvents.length && Array.isArray(jl.color)) ? jl.color : null;
-      if (!col || (col[0] >= 255 && col[1] >= 255 && col[2] >= 255)) continue;
-      this.tintImage(tex, imgW, imgH, col[0], col[1], col[2]);
+      const key = ((tex.src || tex.currentSrc) || tex.width + 'x' + tex.height) + '|' + imgW + 'x' + imgH;
+      let set = perTex.get(key);
+      if (!set) { set = { colors: new Set(), w: imgW, h: imgH, tex: tex, px: imgW * imgH }; perTex.set(key, set); }
+      const want = set.colors;
+      if (Array.isArray(jl.color)) want.add(qk(jl.color));
+      for (const ev of ce) {
+        if (Array.isArray(ev.start)) want.add(qk(ev.start));
+        if (Array.isArray(ev.end)) want.add(qk(ev.end));
+        if (want.size >= 8) break;
+      }
     }
+    // Very large textures: each tint is a ~60-70MB canvas, so only keep the colors that actually
+    // open/end a colorEvent on lines that carry it; skip colors that are pure white (those return
+    // the raw image with no canvas at all).
+    for (const [k, s] of perTex) {
+      const big = s.px > 2000000;
+      let n = 0;
+      for (const c of s.colors) {
+        const [cr, cg, cb] = c.split(',').map(Number);
+        if (cr >= 255 && cg >= 255 && cb >= 255) continue;
+        const tinted = this.tintImage(s.tex, s.w, s.h, cr, cg, cb, true);
+        if (tinted && tinted.width) warm(tinted);
+        if (big && ++n >= 6) break;
+      }
+    }
+  }
+  // The GPU warm-ups drew all textures to (0,0) on the main canvas; clear it so nothing leaks
+  // into the first real frame (the loading screen is opaque, but a clear here is free insurance).
+  if (ctx && ctx.canvas && ctx.canvas.width && ctx.canvas.height) {
+    try { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.restore(); } catch (e) { /* Ignore */ }
   }
 },
 async loadFontFromFolder() {
