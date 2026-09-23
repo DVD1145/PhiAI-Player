@@ -146,7 +146,9 @@ updatePaintLine(jl, currentTime) {
     jl._paintDirty = false;
   }
   const pctx = jl._paintCtx || (jl._paintCtx = cv.getContext('2d'));
-  const v = evaluateEvent(jl.paintEvents, currentTime, 0);
+  // paintEvents' startTime is chart seconds (parsed via bpmListToSeconds); evaluate on the chart-time clock (raw clock - chart offset)
+  // so a non-zero META.offset does not shift the stroke timing relative to the notes.
+  const v = evaluateEvent(jl.paintEvents, currentTime - (this.offset || 0), 0);
   if (v <= 0) {
     if (jl._paintDirty) {
       pctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -973,7 +975,10 @@ drawImageEvents(jl, beat, currentTime) {
     const frames = Math.max(1, Math.round(ev.length || 1));
     let frame = 0;
     if (ev.fps > 0) {
-      const el = (currentTime - bpmListToSeconds(map, ev.startBeat, lbf)) * ev.fps + (ev.offset || 0);
+      // fps frame advancing is chart-time based (event startBeat -> chart seconds), like notes judging at startTimeSec + offset on the raw
+      // clock. Evaluate on the chart-time clock (raw clock - chart offset) so a non-zero META.offset does not desync the sprite frames
+      // from the notes.
+      const el = (currentTime - (this.offset || 0) - bpmListToSeconds(map, ev.startBeat, lbf)) * ev.fps + (ev.offset || 0);
       const f = Math.floor(el);
       frame = ev.loop ? ((f % frames) + frames) % frames : Math.max(0, Math.min(f, frames - 1));
     }

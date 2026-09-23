@@ -422,6 +422,10 @@ animate() {
   }
 },
 updateJudgeLines(beat, currentTime) {
+  // Chart-time clock: notes judge against startTimeSec + this.offset on the raw clock, which is equivalent to chart seconds = raw clock - offset.
+  // Every event that stores chart seconds (scaleX/Y, text, paint, image-fps, UI control intervals) must be evaluated on this clock so a
+  // non-zero META.offset does not drift events away from the notes.
+  const evClk = currentTime - (this.offset || 0);
   // Parent line chain (same semantics as the reference fetch_pos/fetch_rot):
   //   final position = parent final position + R(-1 × parent rotation) * this line's local position   (Phira/prpr fetch_pos)
   //   final rotation = parent final rotation + this line's local rotation   (only when rotateWithFather && followFatherRotate)
@@ -460,8 +464,9 @@ updateJudgeLines(beat, currentTime) {
     jl.incline = evaluateEvent(jl.inclineEvents, lb, 0) || 0;
     jl.inclineSin = Math.sin(jl.incline * Math.PI / 180);
     // After parsing, line scale events carry startTime in seconds (converted by the line bpmfactor) and must be compared against global seconds; other events use line beats
-    jl.scaleX = evaluateEvent(jl.scaleXEvents, currentTime, 1);
-    jl.scaleY = evaluateEvent(jl.scaleYEvents, currentTime, 1);
+    // Evaluated on evClk (chart-time clock) so a non-zero META.offset does not shift scale/text events relative to the notes.
+    jl.scaleX = evaluateEvent(jl.scaleXEvents, evClk, 1);
+    jl.scaleY = evaluateEvent(jl.scaleYEvents, evClk, 1);
 
     // gifEvents: GIF playback progress control (beat domain). If the current line beat falls inside an event span -> interpolate the progress; otherwise -1 = auto loop
     let gp = -1;
@@ -504,16 +509,18 @@ updateJudgeLines(beat, currentTime) {
 
     let text = jl.currentText;
     if (jl.textEvents && jl.textEvents.length > 0) {
+      // Text events are chart-time based: compare on the chart-time clock (raw clock - chart offset) so a non-zero META.offset
+      // does not drift the text relative to the notes (notes judge against startTimeSec + offset on the raw clock).
       let activeEvent = null;
       for (const ev of jl.textEvents) {
-        if (currentTime >= ev.startTime && currentTime <= ev.endTime) {
+        if (evClk >= ev.startTime && evClk <= ev.endTime) {
           activeEvent = ev;
           break;
         }
       }
       if (activeEvent) {
         const ev = activeEvent;
-        const progress = (ev.endTime - ev.startTime) <= 0 ? 1 : (currentTime - ev.startTime) / (ev.endTime - ev.startTime);
+        const progress = (ev.endTime - ev.startTime) <= 0 ? 1 : (evClk - ev.startTime) / (ev.endTime - ev.startTime);
         const t = Math.max(0, Math.min(1, progress));
         const tl = ev.easingLeft ?? 0, tr = ev.easingRight ?? 1;
         let tn = tl + (tr - tl) * t; tn = Math.max(0, Math.min(1, tn));
@@ -536,7 +543,7 @@ updateJudgeLines(beat, currentTime) {
       let isPosActive = false;
       const checkIntervals = (intervals) => {
         for (const iv of intervals) {
-          if (currentTime >= iv.start && currentTime <= iv.end) return true;
+          if (evClk >= iv.start && evClk <= iv.end) return true;
         }
         return false;
       };
