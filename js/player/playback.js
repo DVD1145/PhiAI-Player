@@ -188,11 +188,14 @@ restart() { this.pause(); this.play(); },
 getCurrentTime() {
   // While recording, follow the music element (exactly like normal play) so heavy rendering / VP9-encoding
   // frames cannot make the chart clock drift behind the audio. Charts without a music file fall back to the
-  // frame-accumulated clock (corrected against wall time in the recording loop).
-  if (this._rec && this._recAudioActive && this.audio) return this.audio.currentTime;
-  if (this.fallbackMode) return this.fallbackTime;
-  if (this.audio) return this.audio.currentTime;
-  return (performance.now() / 1000 - this.startTime) * this.speed;
+  // frame-accumulated clock (corrected against wall time in the recording loop). The audio→note sync offset
+  // (settings.syncOffsetMs) is applied at the single clock source so judging, rendering, HUD and the progress
+  // bar all share one calibrated timeline: a positive value shifts the chart clock forward (notes hit earlier).
+  const syncOff = (this.settings && this.settings.syncOffsetMs) || 0;
+  if (this._rec && this._recAudioActive && this.audio) return this.audio.currentTime + syncOff / 1000;
+  if (this.fallbackMode) return this.fallbackTime + syncOff / 1000;
+  if (this.audio) return this.audio.currentTime + syncOff / 1000;
+  return (performance.now() / 1000 - this.startTime) * this.speed + syncOff / 1000;
 },
 getCurrentBeat() {
   const t = this.getCurrentTime();
@@ -414,7 +417,7 @@ animate() {
     this.isPlaying = false;
     this.pauseBtn.classList.add('paused');
     this.hideFX();
-    const head = document.getElementById('ui-bar-head');
+    const head = this._barHeadEl || (this._barHeadEl = document.getElementById('ui-bar-head'));
     if (head) head.style.opacity = '0';
   }
 },

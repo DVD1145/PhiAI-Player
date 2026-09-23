@@ -48,6 +48,7 @@ setupSettingsListeners() {
   const lineNums = document.getElementById('line-numbers');
   const chartHs = document.getElementById('chart-hitsounds');
   const followFatherRotate = document.getElementById('follow-father-rotate');
+  const syncOffset = document.getElementById('sync-offset');
 
   musicVol.value = this.settings.musicVolume * 100;
   sfxVol.value = this.settings.sfxVolume * 100;
@@ -61,6 +62,7 @@ setupSettingsListeners() {
   lineNums.checked = this.settings.lineNumbers;
   chartHs.checked = this.settings.chartHitsounds;
   followFatherRotate.checked = this.settings.followFatherRotate;
+  syncOffset.value = this.settings.syncOffsetMs || 0;
 
   document.getElementById('music-volume-val').textContent = Math.round(this.settings.musicVolume * 100);
   document.getElementById('sfx-volume-val').textContent = Math.round(this.settings.sfxVolume * 100);
@@ -68,6 +70,7 @@ setupSettingsListeners() {
   document.getElementById('flow-speed-val').textContent = this.settings.flowSpeed.toFixed(2);
   document.getElementById('judgement-scale-val').textContent = this.settings.judgementScale.toFixed(2);
   document.getElementById('note-size-val').textContent = this.settings.noteSize.toFixed(2);
+  document.getElementById('sync-offset-val').textContent = (this.settings.syncOffsetMs || 0) | 0;
 
   const saveAndApply = () => {
     this.settings.musicVolume = parseFloat(musicVol.value) / 100;
@@ -82,6 +85,7 @@ setupSettingsListeners() {
     this.settings.lineNumbers = lineNums.checked;
     this.settings.chartHitsounds = chartHs.checked;
     this.settings.followFatherRotate = followFatherRotate.checked;
+    this.settings.syncOffsetMs = parseFloat(syncOffset.value) || 0;
     this.noteScale = this.settings.noteSize;
     this.speed = this.settings.playSpeed;
     this.autoplay = this.settings.autoplay;
@@ -123,6 +127,10 @@ setupSettingsListeners() {
   });
   lineNums.addEventListener('change', saveAndApply);
   chartHs.addEventListener('change', saveAndApply);
+  syncOffset.addEventListener('input', () => {
+    document.getElementById('sync-offset-val').textContent = syncOffset.value;
+    saveAndApply();
+  });
 },
 captureDefaultPositions() {
   const uiMap = {

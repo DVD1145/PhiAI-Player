@@ -106,6 +106,7 @@ class EnhancedRPEPlayer {
     judgementScale: 1.25,
     chartHitsounds: false,
     followFatherRotate: true,
+    syncOffsetMs: 0, // audio→note sync calibration; positive shifts the chart clock forward so notes hit earlier
   };
 
   this.loadSettings();

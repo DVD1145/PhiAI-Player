@@ -91,13 +91,14 @@ updateNotes(beat, ct) {
   }
 
   // Only walk the note tracks around the current playback position each frame; the remaining notes in the window (future notes sorted later)
-  // are skipped with a plain break / cheap skip, so high-density charts do not shift or draw tens of thousands of notes every frame
-  if (this._noteStream) {
-    for (const jl of this.judgeLines) {
-      const a = jl.rotation * Math.PI / 180;
-      jl._cos = Math.cos(a);
-      jl._sin = Math.sin(a);
-    }
+  // are skipped with a plain break / cheap skip, so high-density charts do not shift or draw tens of thousands of notes every frame.
+  // Pre-compute the per-line rotation trig once: the note loop below reuses line._cos/_sin (line 222), so every note on the
+  // line avoids two Math.cos/Math.sin calls per frame (this used to happen on every loaded (non-stream) chart, where the
+  // cache was never filled because the stream-only guard above was the only place that filled it).
+  for (const jl of this.judgeLines) {
+    const a = jl.rotation * Math.PI / 180;
+    jl._cos = Math.cos(a);
+    jl._sin = Math.sin(a);
   }
 
   const __noteList = this._noteStream ? (this._streamWindow || []) : this.notes;
@@ -268,7 +269,7 @@ updateNotes(beat, ct) {
           const tailWorldY = note.positionX * sinA + tailLocalY * cosA;
           const [tailSX, tailSY] = this.toScreen(line.posX + tailWorldX, line.posY + tailWorldY);
 
-          const [tfx, tfy] = this.judgeFXPos(note, tailSX);
+          const [tfx, tfy] = this.judgeFXPos(note, tailSX, tailSY);
           this.addJudgeEffect(tfx, tfy, 'PERFECT', note.tint, line.rotation, note.tintHitEffects);
         }
         if (!note.holdTriggered && !note.judged && ct > startTimeSec + this.LIMIT_BAD * ja) {
@@ -396,17 +397,20 @@ judgeNote(note, judgement) {
   this.addJudgeEffect(fx, fy, judgement, note.tint, this.judgeLines[note.lineIndex].rotation, note.tintHitEffects);
   if (!this.playNoteSounds(note)) this.playSound(this.noteSoundKey(note));
 },
-judgeFXPos(note, x = note.screenX) {
+judgeFXPos(note, x = note.screenX, sy = note.screenY) {
+  // The note's own screen position already includes the judge line's rotation and its
+  // posX/posY (worldX/worldY rotate localX/localY by the line angle, then toScreen adds the
+  // line offset). Projecting x onto the rotated line is wrong: y = lcy + (x - lcx) * tan(a)
+  // slides the effect along the line to the point that shares the note's x, instead of the spot
+  // where the player actually hit. Return the note's true screen coords so the ring/particles
+  // land on the note. Hold tails pass their own computed tail screen position explicitly.
+  if (x == null) x = note.screenX;
+  if (sy == null && note.screenY != null) sy = note.screenY;
   const jl = this.judgeLines[note.lineIndex];
-  if (!jl) return [x, note.screenY || 0];
+  if (!jl) return [x, sy || 0];
   const [lcx, lcy] = this.judgeLineToScreen(jl);
-  const a = (jl.rotation || 0) * Math.PI / 180;
-  const cosA = Math.cos(a), sinA = Math.sin(a);
-  let y = note.screenY || lcy;
-  if (Math.abs(cosA) > 0.001) {
-    y = lcy + (x - lcx) * sinA / cosA;
-  }
-  return [x, y];
+  if (sy == null) sy = lcy;
+  return [x, sy];
 },
 addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
   if (!this.settings.particleEffect || (this.hitFxAtlasConfig && this.hitFxAtlasConfig.hideParticles)) {
