@@ -74,7 +74,12 @@ class ResourcePackLoader {
     if (!info || typeof info !== 'object') info = {};
     console.log('[RP] 解析后的 info 对象:', info);
 
-    const hitFx = firstTruthy(getInfoValue('hitFx', 'hit_fx', 'hitfx'), getInfoValue('hitFx', 'hit_fx', 'hitfx'));
+    const hitFx = firstTruthy(
+      getInfoValue('hitFx', 'hit_fx', 'hitfx'),
+      getInfoValue('HitFx', 'Hit_Fx', 'HitFX'),
+      getInfoValue('hitFxCols', 'hit_fx_cols', 'hitfxcols'),
+      getInfoValue('hitFxRows', 'hit_fx_rows', 'hitfxrows')
+    );
     if (!hitFx || !Array.isArray(hitFx) || hitFx.length !== 2) {
       console.error('[RP] hitFx 无效:', hitFx);
       throw new Error('配置信息缺少有效的 hitFx: [列数, 行数]');

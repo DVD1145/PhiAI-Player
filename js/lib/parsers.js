@@ -519,29 +519,54 @@ function pickChartTip(v) {
   }
   return null;
 }
+function parseConfigScalar(v) {
+  if (v === undefined || v === null) return v;
+  let s = String(v).trim();
+  if (!s) return '';
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1);
+  }
+  if (/^\[(.*)\]$/.test(s)) {
+    const inner = s.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(',').map(part => parseConfigScalar(part)).filter((x) => x !== '');
+  }
+  const lower = s.toLowerCase();
+  if (lower === 'true') return true;
+  if (lower === 'false') return false;
+  if (lower === 'yes') return true;
+  if (lower === 'no') return false;
+  if (lower === 'on') return true;
+  if (lower === 'off') return false;
+  if (/^-?\d+(?:\.\d+)?$/.test(s)) return Number(s);
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return s;
+  return s;
+}
+
 function parseInfoYaml(text) {
   const out = {};
   for (const raw of String(text || '').split(/\r?\n/)) {
     const s = raw.trim();
     const i = s.indexOf(':');
     if (i <= 0 || s[0] === '#') continue;
-    const k = s.slice(0, i).trim().toLowerCase();
+    const k = s.slice(0, i).trim();
     let v = s.slice(i + 1).trim();
-    if (/^['"]/.test(v)) v = v.slice(1);
-    if (/['"]$/.test(v)) v = v.slice(0, -1);
-    if (!k || v === '' ) continue;
-    if (k === 'name') out.name = v;
-    else if (k === 'level') out.level = v;
-    else if (k === 'charter') out.charter = v;
-    else if (k === 'composer') out.composer = v;
-    else if (k === 'illustrator') out.illustrator = v;
-    else if (k === 'music') out.songName = v;
-    else if (k === 'illustration') out.bgName = v;
-    else if (k === 'offset' && /^-?\d/.test(v)) out.offsetSec = parseFloat(v);
-    else if (k === 'backgrounddim' && /^-?\d/.test(v)) out.backgroundDim = parseFloat(v);
-    else if (k === 'unlockvideo') out.unlockVideo = v;
-    else if (k === 'tip') out.tip = v;
-    else if (k === 'dynamicbackground') { const n = parseInt(v, 10); if (n === 1 || n === 2) out.dynamicBackground = n; }
+    if (!k || v === '') continue;
+    const key = k.toLowerCase();
+    const parsed = parseConfigScalar(v);
+    if (key === 'name') out.name = parsed;
+    else if (key === 'level') out.level = parsed;
+    else if (key === 'charter') out.charter = parsed;
+    else if (key === 'composer') out.composer = parsed;
+    else if (key === 'illustrator') out.illustrator = parsed;
+    else if (key === 'music') out.songName = parsed;
+    else if (key === 'illustration') out.bgName = parsed;
+    else if (key === 'offset' && typeof parsed === 'number') out.offsetSec = parsed;
+    else if (key === 'backgrounddim' && typeof parsed === 'number') out.backgroundDim = parsed;
+    else if (key === 'unlockvideo') out.unlockVideo = parsed;
+    else if (key === 'tip') out.tip = parsed;
+    else if (key === 'dynamicbackground') { const n = parseInt(parsed, 10); if (n === 1 || n === 2) out.dynamicBackground = n; }
+    else out[k] = parsed;
   }
   return Object.keys(out).length ? out : null;
 }
@@ -554,17 +579,21 @@ function parseInfoTxt(text) {
     if (!s || s.charAt(0) === '#') continue;
     const i = s.indexOf(':');
     if (i <= 0) continue;
-    const k = s.slice(0, i).trim().toLowerCase();
+    const k = s.slice(0, i).trim();
     const v = s.slice(i + 1).trim();
     if (!v) continue;
-    if (k === 'name') out.name = v;
-    else if (k === 'song') out.song = v;
-    else if (k === 'picture' || k === 'background') out.background = v;
-    else if (k === 'level') out.level = v;
-    else if (k === 'charter') out.charter = v;
-    else if (k === 'composer') out.composer = v;
-    else if (k === 'offset' && /^-?\d/.test(v)) out.offsetSec = parseFloat(v);
-    else if (k === 'dynamicbackground') { const n = parseInt(v, 10); if (n === 1 || n === 2) out.dynamicBackground = n; }
+    const key = k.toLowerCase();
+    const parsed = parseConfigScalar(v);
+    if (key === 'name') out.name = parsed;
+    else if (key === 'song') out.song = parsed;
+    else if (key === 'picture' || key === 'background') out.background = parsed;
+    else if (key === 'level') out.level = parsed;
+    else if (key === 'charter') out.charter = parsed;
+    else if (key === 'composer') out.composer = parsed;
+    else if (key === 'offset' && typeof parsed === 'number') out.offsetSec = parsed;
+    else if (key === 'dynamicbackground') { const n = parseInt(parsed, 10); if (n === 1 || n === 2) out.dynamicBackground = n; }
+    else if (['hitfx', 'hitfxduration', 'hitfxscale', 'hitfxrotate', 'holdatlas', 'holdatlasmh', 'colorperfect', 'colorgood', 'holdsfx', 'goodhitfx', 'holdrepeat', 'holdkeephead', 'holdcompact', 'hideparticles', 'hitfxtinted'].includes(key)) out[k] = parsed;
+    else out[k] = parsed;
   }
   return Object.keys(out).length ? out : null;
 }
