@@ -4,44 +4,87 @@ class ResourcePackLoader {
     console.log('[RP] 开始加载资源包:', file.name);
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
-    
-    const hasClick = !!zip.file('click.png');
+
+    const findPackFile = (name, alternatives = []) => {
+      const candidates = [name, ...alternatives].filter(Boolean).map(s => String(s));
+      for (const cand of candidates) {
+        const exact = zip.file(cand);
+        if (exact) return exact;
+      }
+      const entries = Object.keys(zip.files || {});
+      const lower = candidates.map(c => c.toLowerCase());
+      for (const path of entries) {
+        if (zip.files[path].dir) continue;
+        const base = path.replace(/\\/g, '/').split('/').pop().toLowerCase();
+        if (lower.includes(base)) return zip.file(path);
+      }
+      return null;
+    };
+    const firstTruthy = (...values) => {
+      for (const v of values) {
+        if (v !== undefined && v !== null && v !== '') return v;
+      }
+      return undefined;
+    };
+    const getInfoValue = (...keys) => {
+      const infoObj = (typeof info !== 'undefined' && info) ? info : {};
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(infoObj, key)) return infoObj[key];
+        const match = Object.keys(infoObj).find(k => k && k.toLowerCase() === String(key).toLowerCase());
+        if (match) return infoObj[match];
+      }
+      return undefined;
+    };
+    const parseTruthy = (v) => {
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'number') return v !== 0;
+      if (typeof v === 'string') return ['1', 'true', 'yes', 'y', 'on'].includes(v.trim().toLowerCase());
+      return false;
+    };
+
+    const clickFile = findPackFile('click.png');
+    const hasClick = !!clickFile;
     if (!hasClick) {
       console.warn('[RP] 未找到 click.png，可能不是有效资源包');
       throw new Error('不是有效的资源包（缺少 click.png）');
     }
 
-    const infoFile = zip.file('info.yml');
-    if (!infoFile) throw new Error('PEZ 文件中未找到 info.txt');
-    const yamlText = await infoFile.async('string');
-    const cleanYaml = yamlText.replace(/^\uFEFF/, '');
-    console.log('[RP] info.yml 原始内容 (前200字符):', cleanYaml.substring(0, 200));
+    const infoFile = findPackFile('info.yml', ['info.yaml', 'manifest.yaml', 'info.txt']);
+    if (!infoFile) throw new Error('PEZ 文件中未找到 info.yml / info.yaml / info.txt');
+    const rawText = await infoFile.async('string');
+    const cleanText = rawText.replace(/^\uFEFF/, '');
+    console.log('[RP] 资源包配置内容 (前200字符):', cleanText.substring(0, 200));
 
     const extensionMarkerPhi = '#以下为PhiAI扩展信息段';
     const extensionMarkerOld = '#以下为AiRE扩展信息段';
-    const extensionEnabled = cleanYaml.includes(extensionMarkerPhi) || cleanYaml.includes(extensionMarkerOld);
+    const extensionEnabled = cleanText.includes(extensionMarkerPhi) || cleanText.includes(extensionMarkerOld);
     console.log('[RP] PhiAI 扩展启用:', extensionEnabled);
 
     let info;
     try {
-      info = jsyaml.load(cleanYaml);
+      if (/\.txt$/i.test(infoFile.name || '')) {
+        info = parseInfoTxt(cleanText);
+      } else {
+        info = jsyaml.load(cleanText);
+      }
     } catch (e) {
-      console.error('[RP] YAML 解析失败:', e);
+      console.error('[RP] 配置解析失败:', e);
       throw new Error('info.yml 解析失败: ' + e.message);
     }
+    if (!info || typeof info !== 'object') info = {};
     console.log('[RP] 解析后的 info 对象:', info);
 
-    const hitFx = info.hitFx || info.hit_fx;
+    const hitFx = firstTruthy(getInfoValue('hitFx', 'hit_fx', 'hitfx'), getInfoValue('hitFx', 'hit_fx', 'hitfx'));
     if (!hitFx || !Array.isArray(hitFx) || hitFx.length !== 2) {
       console.error('[RP] hitFx 无效:', hitFx);
-      throw new Error('info.yml 解析失败: ' + e.message);
+      throw new Error('配置信息缺少有效的 hitFx: [列数, 行数]');
     }
 
-    const holdAtlas = info.holdAtlas || info.hold_atlas || [10, 10];
-    const holdAtlasMH = info.holdAtlasMH || info.hold_atlas_mh || [10, 10];
+    const holdAtlas = firstTruthy(getInfoValue('holdAtlas', 'hold_atlas', 'holdatlas'), [10, 10]);
+    const holdAtlasMH = firstTruthy(getInfoValue('holdAtlasMH', 'hold_atlas_mh', 'holdatlasmh'), [10, 10]);
 
     const loadImageFromZip = async (name) => {
-      const file = zip.file(name);
+      const file = findPackFile(name);
       if (!file) return null;
       const blob = await file.async('blob');
       const url = URL.createObjectURL(blob);
@@ -60,7 +103,7 @@ class ResourcePackLoader {
 
     const loadAudioFromZip = async (basename) => {
       for (const ext of ['ogg', 'wav', 'mp3']) {
-        const f = zip.file(`${basename}.${ext}`);
+        const f = findPackFile(`${basename}.${ext}`);
         if (f) {
           const blob = await f.async('blob');
           const url = URL.createObjectURL(blob);
@@ -107,10 +150,10 @@ class ResourcePackLoader {
     let goodHitFxImage = null;
 
     if (extensionEnabled) {
-      if (info.colorPerfect) colorPerfect = info.colorPerfect;
-      if (info.colorGood) colorGood = info.colorGood;
-      if (info.HoldSFX === true || info.HoldSFX === 'true') holdSFX = true;
-      if (info.GoodHitFX === true || info.GoodHitFX === 'true') goodHitFX = true;
+      colorPerfect = firstTruthy(getInfoValue('colorPerfect', 'color_perfect', 'colorperfect'), getInfoValue('ColorPerfect')) || null;
+      colorGood = firstTruthy(getInfoValue('colorGood', 'color_good', 'colorgood'), getInfoValue('ColorGood')) || null;
+      holdSFX = parseTruthy(firstTruthy(getInfoValue('HoldSFX', 'holdSFX', 'hold_sfx', 'holdsfx'), getInfoValue('HoldSfx')));
+      goodHitFX = parseTruthy(firstTruthy(getInfoValue('GoodHitFX', 'goodHitFX', 'good_hit_fx', 'goodhitfx'), getInfoValue('GoodHitFx')));
 
       if (holdSFX) {
         holdSoundBuffer = await loadAudioFromZip('Hold');
