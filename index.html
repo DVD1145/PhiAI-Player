@@ -64,14 +64,6 @@
       <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
       游玩
     </button>
-    <label class="standalone-chk" id="standalone-chk-wrap" title="勾选后点击[游玩]:会在一个新建的独立窗口里直接开始播放本谱面,无需重新导入">
-      <input type="checkbox" id="play-standalone-chk">
-      <span>独立窗口</span>
-    </label>
-    <button class="btn rec" id="btn-record">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
-      录制
-</button>
   </div>
   
   <button id="settings-toggle" title="设置">
@@ -83,49 +75,6 @@
     <div id="ld-songname"></div>
     <div id="ld-composer"></div>
   </div>
-</div>
-
-<div id="rec-modal" class="modal-overlay">
-  <div class="rec-panel">
-    <h2>选择录制参数</h2>
-    <div class="rec-opts" id="rec-opts"></div>
-    <div class="rec-setting">
-      <label for="rec-quality">渲染质量</label>
-      <select id="rec-quality">
-        <option value="0.75">省电 75%</option>
-        <option value="1" selected>平衡 100%</option>
-        <option value="1.5">精细 150%</option>
-        <option value="2">极致 200%</option>
-      </select>
-      <label for="rec-fps" style="margin-left:8px">帧率</label>
-      <select id="rec-fps">
-        <option value="30">30 FPS</option>
-        <option value="60" selected>60 FPS</option>
-      </select>
-    </div>
-    <p class="rec-note-q">渲染质量即内部分辨率放大倍率:过采样超采样出清晰画面,渲染越重越吃性能;录制时特效层自动关闭。低配机建议 75%。</p>
-    <div class="rec-actions">
-      <button class="btn gray" id="rec-modal-cancel">取消</button>
-      <button class="btn rec" id="rec-modal-start">开始录制</button>
-    </div>
-  </div>
-</div>
-
-<div id="rec-overlay" class="modal-overlay">
-  <div class="rec-panel">
-    <h2 id="rec-title">正在录制</h2>
-    <div class="rec-bar-wrap"><div class="rec-bar" id="rec-bar"></div></div>
-    <div class="rec-progress-text" id="rec-progress-text">0%</div>
-    <div id="rec-done-actions" style="display:none">
-      <a id="rec-dl-link" class="btn rec" target="_blank">保存视频</a>
-      <button class="btn gray" id="rec-close">完成</button>
-    </div>
-    <button class="btn gray" id="rec-stop">取消录制</button>
-  </div>
-</div>
-
-<div id="unlock-overlay" class="hidden">
-  <video id="unlock-video" playsinline preload="auto"></video>
 </div>
 
 <div id="settings-modal">
@@ -305,7 +254,6 @@
   <script src="js/player/rendering.js"></script>
   <script src="js/player/fx.js"></script>
   <script src="js/player/controls.js"></script>
-<script src="js/player/recording.js"></script>
   <script src="js/builtin-resources.js"></script>
   <script src="js/bootstrap.js"></script>
 <script src="js/splash.js"></script>

@@ -22,102 +22,6 @@ const player = new EnhancedRPEPlayer(canvas);
 window.playerRef = player; // Top-level consts are not exposed on window; the custom UI runtime needs to reference them
 player.loadBuiltinPack();
 
-let ffmpegRuntime = null;
-async function getFFmpeg() {
-  if (ffmpegRuntime) return ffmpegRuntime;
-if (typeof FFmpegWASM === 'undefined' || !FFmpegWASM.FFmpeg) {
-  const mod = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
-  FFmpegWASM = mod;
-}
-  const ff = new FFmpegWASM.FFmpeg();
-  ff.on('log', ({ message }) => { if (/error/i.test(message)) console.warn('[ffmpeg]', message); });
-  await ff.load({
-    coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
-    wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm',
-  });
-  ffmpegRuntime = ff;
-  return ff;
-}
-
-let transcoding = false;
-async function transcodeToPlayable(file) {
-  if (transcoding) return null;
-  transcoding = true;
-  try {
-    const ff = await getFFmpeg();
-    const safe = (file.name || 'unlock.mp4').replace(/[^\w.\-]/g, '_');
-    const inName = 'in_' + safe;
-    const buf = await file.arrayBuffer();
-    await ff.writeFile(inName, new Uint8Array(buf));
-    await ff.exec(['-y', '-i', inName, '-map', '0:v:0', '-map', '0:a:0?',
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
-      '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', 'unlock_out.mp4']);
-    const data = await ff.readFile('unlock_out.mp4');
-    try { await ff.deleteFile(inName); } catch (e) {}
-    try { await ff.deleteFile('unlock_out.mp4'); } catch (e) {}
-    return new Blob([data.buffer], { type: 'video/mp4' });
-  } catch (e) {
-    console.warn('[ffmpeg] transcode failed:', e);
-    return null;
-  } finally {
-    transcoding = false;
-  }
-}
-
-function playUnlockOverlay(file) {
-  return new Promise((resolve) => {
-    const ov = document.getElementById('unlock-overlay');
-    const v = document.getElementById('unlock-video');
-    let done = false;
-    let trans = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      v.pause();
-      v.removeAttribute('src');
-      v.load();
-      ov.classList.add('hidden');
-      resolve();
-    };
-    ov.onclick = () => finish();
-    v.onended = () => finish();
-
-    const tryNative = () => {
-      ov.classList.remove('hidden');
-      v.src = URL.createObjectURL(file);
-      v.onloadedmetadata = () => {
-        if (!v.videoWidth || !v.videoHeight) doTranscode();
-      };
-      v.onerror = () => {
-        if (trans) return;
-        trans = true;
-        doTranscode();
-      };
-      v.muted = false;
-      v.play().catch(() => {
-        v.muted = true;
-        v.play().catch((e2) => {
-          if (e2 && (e2.name === 'NotSupportedError' || /not.?support/i.test(String(e2)))) doTranscode();
-        });
-      });
-    };
-
-    const doTranscode = async () => {
-      if (done || trans) return;
-      trans = true;
-      try {
-        const blob = await transcodeToPlayable(file);
-        if (!blob) return;
-        v.src = URL.createObjectURL(blob);
-        v.muted = true;
-        v.play().catch(() => {});
-      } catch (e) { console.warn(e); }
-    };
-
-    tryNative();
-  });
-}
-
 function formatClock(s) {
   s = Math.max(0, s || 0);
   const m = Math.floor(s / 60);
@@ -155,9 +59,6 @@ async function showStagedChart() {
 }
 
 function undoImport() {
-  if (player._rec) player.stopChartRecording(true);
-  closeRecOverlay();
-  closeRecModal();
   player._pendingChartData = null;
   try { player.cleanup(); } catch (e) { /* Ignore */ }
   player.chart = null;
@@ -178,104 +79,9 @@ function undoImport() {
   try { player.ctx.fillStyle = '#000'; player.ctx.fillRect(0, 0, player.width, player.height); } catch (e) { /* Ignore */ }
 }
 
-// ---------- Recording UI wiring ----------
-const REC_PRESETS = [
-  { label: 'SD', sub: '1280 × 853', w: 1280, h: 853 },
-  { label: 'HD', sub: '1920 × 1280', w: 1920, h: 1280 },
-  { label: 'QHD', sub: '2560 × 1707', w: 2560, h: 1707 },
-  { label: '4K', sub: '3840 × 2560', w: 3840, h: 2560 },
-];
-let recSel = REC_PRESETS[1];
-let recBuilt = false;
-
-function buildRecOpts() {
-  const wrap = document.getElementById('rec-opts');
-  if (!wrap || recBuilt) return;
-  recBuilt = true;
-  for (const p of REC_PRESETS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'rec-opt' + ((p === recSel) ? ' sel' : '');
-    b.innerHTML = p.label + '<small>' + p.sub + '</small>';
-    b.addEventListener('click', () => {
-      recSel = p;
-      for (const c of wrap.children) c.classList.toggle('sel', c === b);
-    });
-    wrap.appendChild(b);
-  }
-}
-
-function openRecModal() {
-  if (player._rec) { player.showStatus('正在录制中'); return; }
-  if (!player.chart || !player.totalSeconds) { player.showStatus('请先导入谱面'); return; }
-  buildRecOpts();
-  const m = document.getElementById('rec-modal');
-  if (m) m.classList.add('open');
-}
-function closeRecModal() {
-  const m = document.getElementById('rec-modal');
-  if (m) m.classList.remove('open');
-}
-
-function showRecProgress() {
-  const ov = document.getElementById('rec-overlay');
-  if (ov) ov.classList.add('open');
-  const title = document.getElementById('rec-title');
-  if (title) title.textContent = '正在录制';
-  const done = document.getElementById('rec-done-actions');
-  if (done) done.style.display = 'none';
-  const stop = document.getElementById('rec-stop');
-  if (stop) stop.style.display = '';
-}
-
-function closeRecOverlay() {
-  const ov = document.getElementById('rec-overlay');
-  if (ov) ov.classList.remove('open');
-}
-
-function showRecResult(blob, fileName) {
-  const ov = document.getElementById('rec-overlay');
-  if (ov) ov.classList.add('open');
-  const title = document.getElementById('rec-title');
-  const bar = document.getElementById('rec-bar');
-  const txt = document.getElementById('rec-progress-text');
-  const done = document.getElementById('rec-done-actions');
-  const stop = document.getElementById('rec-stop');
-  if (title) title.textContent = blob ? '录制完成' : '已取消录制';
-  if (bar) bar.style.width = blob ? '100%' : '0%';
-  if (txt) txt.textContent = blob ? '视频已生成,请保存' : '未生成视频';
-  if (done) done.style.display = 'flex';
-  if (stop) stop.style.display = 'none';
-  if (blob) {
-    const link = document.getElementById('rec-dl-link');
-    const url = URL.createObjectURL(blob);
-    if (link) {
-      link.href = url;
-      link.download = fileName || 'recording.webm';
-      // Auto-save (bandwidth-hidden, no user gesture required for blob downloads)
-      link.click();
-    }
-  }
-}
-
-function startRecordingSelected() {
-  if (!player.chart || !player.totalSeconds) { player.showStatus('请先导入谱面'); return; }
-  closeRecModal();
-  showRecProgress();
-  const q = document.getElementById('rec-quality');
-  const f = document.getElementById('rec-fps');
-  const quality = q ? (parseFloat(q.value) || 1) : 1;
-  const fps = f ? (parseInt(f.value, 10) || 60) : 60;
-  player.startChartRecording(recSel.w, recSel.h, quality, fps);
-}
-
 async function afterLoad() {
   // Only enter the play screen once the offline background blur is ready, so the unblurred original is never shown first
   await player.waitBackground();
-  if (player.unlockVideoFile) {
-    try { await playUnlockOverlay(player.unlockVideoFile); } catch (e) { /* Continue even if playback fails */ }
-    player.unlockVideoFile = null;
-  }
   const cv = document.getElementById('game-canvas');
   const overlay = document.getElementById('intro-overlay');
   const loadBg = document.getElementById('load-bg');
@@ -726,56 +532,9 @@ if (pResume) pResume.addEventListener('click', () => player.resumeWithCountdown(
 const btnUndo = document.getElementById('btn-undo');
 if (btnUndo) btnUndo.addEventListener('click', undoImport);
 const btnPlayLoaded = document.getElementById('btn-play-loaded');
-const btnRecord = document.getElementById('btn-record');
-if (btnRecord) btnRecord.addEventListener('click', openRecModal);
-// ---- 游玩可选"独立窗口":勾选后,点击 [游玩] 改为新建一个脚本打开的独立窗口,把当前已载入的谱面
-//      文件夹直接交给它并立即开始播放(不需要重新走一遍导入/加载) ----
-const standaloneChk = document.getElementById('play-standalone-chk');
-try { if (standaloneChk && localStorage.getItem('rpe-play-standalone') === '1') standaloneChk.checked = true; } catch (e) { /* privacy mode */ }
-if (standaloneChk) standaloneChk.addEventListener('change', () => {
-  try { localStorage.setItem('rpe-play-standalone', standaloneChk.checked ? '1' : '0'); } catch (e) { /* ignore */ }
-});
-function playInStandaloneWindow() {
-  const p = window.playerRef;
-  if (!p || !p.chartFiles || !p.chartFiles.size) { afterLoad(); return; }
-  const chartFiles = Array.from(p.chartFiles.values());
-  const url = window.location.href + (window.location.href.indexOf('?') >= 0 ? '&' : '?') + 'rpe=standalone';
-  const w = window.open(url, 'rpe-window', 'popup=yes,width=1120,height=700');
-  if (!w) { p.showStatus('弹出窗口被浏览器拦截:请允许本页弹出窗口后重试'); return; }
-  const send = () => {
-    try { w.postMessage({ type: 'rpe-window-play', files: chartFiles }, '*'); } catch (e) { /* huge-chart clone may fail; popup manual import still available */ }
-  };
-  send();
-  const sn = setInterval(send, 500);
-  setTimeout(() => { clearInterval(sn); }, 5000);
-}
 if (btnPlayLoaded) btnPlayLoaded.addEventListener('click', () => {
-  if (player._rec) return;
-  if (standaloneChk && standaloneChk.checked) { playInStandaloneWindow(); return; }
   afterLoad();
 });
-window.addEventListener('message', (ev) => {
-  const d = ev.data;
-  if (!d || d.type !== 'rpe-window-play' || !Array.isArray(d.files) || !window.playerRef) return;
-  if (window.location.search.indexOf('rpe=standalone') < 0) return; // only the dedicated standalone window consumes it
-  if (window.__rpeReceived) return;
-  window.__rpeReceived = true;
-  window.playerRef.loadChartFolder(d.files).then(async (ok) => {
-    if (!ok) return;
-    try { if (window.playerRef.waitBackground) await window.playerRef.waitBackground(); } catch (e) { /* ignore */ }
-    const ls = document.getElementById('load-screen');
-    if (ls) { ls.style.display = 'none'; ls.classList.add('hidden', 'loading-mode'); }
-    window.playerRef.play();
-  }).catch(() => {});
-});
-const recModalCancel = document.getElementById('rec-modal-cancel');
-if (recModalCancel) recModalCancel.addEventListener('click', closeRecModal);
-const recModalStart = document.getElementById('rec-modal-start');
-if (recModalStart) recModalStart.addEventListener('click', startRecordingSelected);
-const recStop = document.getElementById('rec-stop');
-if (recStop) recStop.addEventListener('click', () => { if (player._rec) player.stopChartRecording(true); });
-const recClose = document.getElementById('rec-close');
-if (recClose) recClose.addEventListener('click', closeRecOverlay);
 
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') { if (player._countingDown || player._rec) return; player.hidePauseOverlay(); const ls = document.getElementById('load-screen'); ls.style.display = ''; ls.style.transform = ''; ls.classList.remove('hidden', 'loading-mode'); player.pause(); }
