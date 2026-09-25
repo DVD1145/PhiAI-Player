@@ -14,6 +14,23 @@ document.getElementById('settings-modal').addEventListener('click', function(e) 
   if (e.target === this) closeSettings();
 });
 
+// Material-style press feedback for home controls only. Play and pause controls
+// intentionally stay outside this interaction layer.
+document.addEventListener('pointerdown', (e) => {
+  const target = e.target.closest('#load-screen .btn, #settings-modal button');
+  if (!target || target.disabled) return;
+  const rect = target.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 0.7;
+  const ripple = document.createElement('span');
+  ripple.className = 'md-ripple';
+  ripple.style.width = size + 'px';
+  ripple.style.height = size + 'px';
+  ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  target.appendChild(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+});
+
 // ============================================================
 //  Initialization
 // ============================================================
@@ -52,14 +69,24 @@ async function showStagedChart() {
   ls.classList.remove('hidden', 'loading-mode');
   const meta = (player.chart && player.chart.META) || (player._pendingChartData && player._pendingChartData.META) || {};
   const title = meta.name || meta.title || meta.songName || 'Unknown';
-  const p = ls.querySelector('p');
-  if (p) p.textContent = '已载入 ' + title;
+  const toast = document.getElementById('load-toast');
+  if (toast) {
+    toast.textContent = '已载入 ' + title;
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    clearTimeout(window.__loadToastTimer);
+    window.__loadToastTimer = setTimeout(() => toast.classList.remove('show'), 3600);
+  }
   const row = document.getElementById('chart-action-row');
   if (row) row.style.display = 'flex';
 }
 
 function undoImport() {
   player._pendingChartData = null;
+  const toast = document.getElementById('load-toast');
+  if (toast) toast.classList.remove('show');
+  clearTimeout(window.__loadToastTimer);
   try { player.cleanup(); } catch (e) { /* Ignore */ }
   player.chart = null;
   player.judgeLines = [];
@@ -541,5 +568,5 @@ document.addEventListener('keydown', (e) => {
 });
 
 player.render(0, 0);
-console.log('🎵 PEZ 播放器已就绪（特效位置修正）');
+console.log('Welcome to PhiAI.');
 

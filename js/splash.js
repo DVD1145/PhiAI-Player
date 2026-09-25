@@ -75,6 +75,7 @@
     ov.classList.add('splash-done');
     await sleep(800);
     ov.style.display = 'none';
+    document.body.classList.add('splash-finished');
     if (retryEvt) {
       ['pointerdown', 'touchstart', 'keydown'].forEach(function (ev) {
         document.removeEventListener(ev, retryEvt);

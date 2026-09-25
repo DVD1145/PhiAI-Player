@@ -438,7 +438,7 @@ addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
     let duration = config ? config.duration : 0.4;
     let scale = config ? config.scale : 1.0;
     const rot = (config && config.rotate) ? lineRotationDeg * Math.PI / 180 : 0;
-    const radius = 30 * this.noteScale * scale * (this.scaleX || 1) * (this.settings.hitFxScale ?? 1);
+    const radius = 32 * this.noteScale * scale * (this.scaleX || 1) * (this.settings.hitFxScale ?? 1);
     this.judgeEffects.push({
       x, y, life: 1.0, maxLife: duration, result, color: finalColor,
       radius, frame: 0, totalFrames,
@@ -516,7 +516,7 @@ addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
   let duration = config ? config.duration : 0.4;
   let scale = config ? config.scale : 1.0;
   const rot = (config && config.rotate) ? lineRotationDeg * Math.PI / 180 : 0;
-  const radius = 30 * this.noteScale * scale * (this.scaleX || 1) * (this.settings.hitFxScale ?? 1);
+  const radius = 32 * this.noteScale * scale * (this.scaleX || 1) * (this.settings.hitFxScale ?? 1);
   this.judgeEffects.push({
     x, y,
     life: 1.0,

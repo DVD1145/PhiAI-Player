@@ -44,12 +44,41 @@
     pointer-events: none;
   }
   #load-screen > .logo-svg,
+  #load-screen > .home-welcome,
   #load-screen > p,
   #load-screen > .file-row {
     position: relative;
     z-index: 1;
   }
   #load-screen > #settings-toggle { z-index: 2; }
+  #load-toast {
+    position: absolute;
+    top: clamp(18px, 3.5vh, 34px);
+    left: clamp(18px, 3.5vw, 42px);
+    z-index: 5;
+    max-width: min(54vw, 460px);
+    padding: 12px 18px;
+    overflow: hidden;
+    color: #fff;
+    background: #1d1d1d;
+    border-left: 3px solid var(--md-primary);
+    border-radius: 0 12px 12px 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    font-size: clamp(12px, 1.6vmin, 15px);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(calc(-100% - 48px));
+    pointer-events: none;
+  }
+  #load-toast.show { animation: load-toast-in 3.6s linear both; }
+  @keyframes load-toast-in {
+    0% { opacity: 0; transform: translateX(calc(-100% - 48px)); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    12% { opacity: 1; transform: translateX(0); animation-timing-function: linear; }
+    78% { opacity: 1; transform: translateX(0); animation-timing-function: cubic-bezier(.32,0,.67,0); }
+    100% { opacity: 0; transform: translateX(calc(-100% - 48px)); }
+  }
 #load-screen.loading-mode { z-index: 1000001; opacity: 0; transition: opacity 0.5s ease; }
 #load-screen.loading-mode > *:not(#loading-indicator) { display: none !important; }
 #loading-indicator { display: none; position: absolute; inset: 0; z-index: 1; }
@@ -523,10 +552,26 @@ font-family: 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif
   }
 
   @media (max-width: 600px) {
-    .logo-svg { width: 90%; }
-    .btn { padding: 10px 18px; font-size: 13px; }
-    .settings-panel { padding: 20px; }
+    #load-screen { justify-content: center; }
+    #load-screen > .home-welcome { width: min(86vw, 560px); margin-bottom: 5vh; }
+    #load-screen > .file-row:not(#chart-action-row) { width: min(86vw, 420px); grid-template-columns: 1fr; }
+    #load-screen > #chart-action-row { width: min(86vw, 420px); }
+    #load-screen .btn { min-height: 46px; font-size: clamp(12px, 3.3vw, 14px); }
+    #settings-toggle { right: 5vw; bottom: 5vw; width: 48px; height: 48px; }
+    .settings-panel { width: calc(100vw - 8vw); max-height: calc(100svh - 8vw); padding: 20px; border-radius: 20px; }
     .setting-item input[type="range"] { width: 100px; }
+  }
+  @media (min-width: 601px) and (max-height: 620px) {
+    #load-screen > .home-welcome { margin-bottom: 2.5vh; }
+    #load-screen > .file-row { margin-bottom: 1vh; }
+    #load-screen .btn { min-height: 42px; }
+  }
+  @media (max-width: 360px) {
+    #load-screen > .file-row:not(#chart-action-row),
+    #load-screen > #chart-action-row { width: 90vw; }
+    .home-welcome h1 { font-size: 34px; }
+    .settings-panel { padding: 16px; }
+    .setting-item label { font-size: 12px; }
   }
 
 /* Opening overlay: blurred chart background + 50% black, expands from the left as a polygon (-15deg slanted edge, easeOutExpo 1s), covering every UI element of the main page
@@ -596,4 +641,233 @@ font-family: 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif
   }
   #splash-overlay.splash-done { opacity: 0; }
   #splash-svg { width: min(60vw, calc(60vh * 3391 / 628)); height: auto; display: block; }
+
+/* Material-style home surface. These rules intentionally stay scoped to the
+   import screen and settings dialog so the in-game HUD keeps its timing and look. */
+  :root {
+    --md-primary: #ff6d00;
+    --md-primary-dark: #d95700;
+    --md-on-primary: #241000;
+    --md-surface: #f7f8fc;
+    --md-surface-container: rgba(255,255,255,.82);
+    --md-surface-high: rgba(255,255,255,.94);
+    --md-on-surface: #202124;
+    --md-on-surface-variant: #62656d;
+    --md-outline: #c6c8cf;
+    --md-shadow: 0 18px 48px rgba(28, 31, 39, .16), 0 3px 10px rgba(28, 31, 39, .08);
+  }
+
+  #load-screen {
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
+    color: #f5f5f5;
+    background: #000;
+  }
+  #load-screen::before, #load-screen::after { display: none; }
+  #load-screen > .home-welcome,
+  #load-screen > p,
+  #load-screen > .file-row,
+  #load-screen > #settings-toggle { opacity: 0; transform: translateY(20px); }
+  #load-screen > .home-welcome { width: min(68vw, 680px); margin: 0 0 clamp(20px, 4vh, 34px); text-align: center; }
+  .home-welcome span { display: block; margin-bottom: clamp(8px, 1.4vh, 14px); color: #ff8a3d; font-size: clamp(10px, 1.35vmin, 13px); font-weight: 700; letter-spacing: .2em; }
+  .home-welcome h1 { color: #fff; font-size: clamp(34px, 7.2vmin, 68px); font-weight: 600; line-height: 1.05; letter-spacing: .02em; }
+  .home-welcome p { margin: clamp(10px, 1.8vh, 16px) 0 0 !important; color: #9b9b9b !important; font-size: clamp(12px, 1.7vmin, 15px) !important; }
+  #load-screen > .file-row { position: relative; z-index: 1; gap: clamp(8px, 1.2vw, 14px); width: min(76vw, 760px); margin: 0 auto clamp(10px, 1.8vh, 16px); padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  #load-screen > .file-row:not(#chart-action-row) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #load-screen > .file-row .btn { width: 100%; justify-content: center; }
+  #load-screen > #chart-action-row { width: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  #load-screen > #settings-toggle { animation-delay: .3s; }
+  #load-screen > .home-welcome, #load-screen > .file-row { opacity: 0; transform: translateY(20px); }
+  body.splash-finished #load-screen > .home-welcome { animation: md-home-enter .7s cubic-bezier(.2,.8,.2,1) .08s both; }
+  body.splash-finished #load-screen > .file-row { animation: md-home-enter .7s cubic-bezier(.2,.8,.2,1) .2s both; }
+  body.splash-finished #load-screen > #chart-action-row { animation-delay: .28s; }
+  body.splash-finished #load-screen > #settings-toggle { animation: md-home-enter .7s cubic-bezier(.2,.8,.2,1) .3s both; }
+  @keyframes md-home-enter { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+  #load-screen .btn,
+  #settings-modal button {
+    position: relative;
+    overflow: hidden;
+    min-height: clamp(42px, 6.2vmin, 52px);
+    padding: 0 clamp(12px, 1.8vw, 22px);
+    border-radius: 14px;
+    border: 0;
+    font: 600 14px 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    letter-spacing: .01em;
+    transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background-color .2s ease, border-color .2s ease, color .2s ease;
+  }
+  #load-screen .btn:hover,
+  #settings-modal button:hover { transform: none; box-shadow: 0 8px 18px rgba(31, 35, 45, .14); }
+  #load-screen .btn:active,
+  #settings-modal button:active { transform: translateY(0) scale(.98); box-shadow: none; }
+  #load-screen .btn.primary { background: var(--md-primary); color: var(--md-on-primary); box-shadow: 0 4px 10px rgba(255, 109, 0, .26); }
+  #load-screen .btn.primary:hover { background: #ff8126; }
+  #load-screen .btn.blue,
+  #load-screen .btn.green { background: #1e1e1e; color: #f1f1f1; border-color: transparent; box-shadow: none; }
+  #load-screen .btn.blue:hover,
+  #load-screen .btn.green:hover { background: #2b2b2b; border-color: transparent; }
+  #load-screen .btn.gray { background: transparent; color: #bdbdbd; border-color: transparent; }
+  #load-screen .btn.gray:hover { background: #1d1d1d; }
+  #load-screen .btn svg { color: currentColor; transition: transform .2s ease; }
+  #load-screen .btn:hover svg { transform: scale(1.08); }
+  #load-screen .btn.primary svg { color: var(--md-on-primary); }
+  #settings-toggle {
+    right: 28px; bottom: 28px; width: 52px; height: 52px;
+    color: #f0f0f0; background: #171717;
+    border: 1px solid #3b3b3b; border-radius: 16px;
+    box-shadow: 0 5px 16px rgba(0,0,0,.4);
+    backdrop-filter: blur(14px);
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), background-color .2s ease, box-shadow .2s ease;
+  }
+  #settings-toggle:hover { background: #252525; transform: none; box-shadow: 0 10px 24px rgba(0,0,0,.55); }
+  #settings-toggle:active { transform: scale(.94); }
+  #settings-toggle svg { width: 23px; height: 23px; transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+  #settings-toggle:hover svg { transform: rotate(60deg); }
+
+  #settings-modal {
+    display: flex;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(24, 27, 34, .38);
+    backdrop-filter: blur(10px) saturate(1.05);
+    transition: opacity .28s ease, visibility 0s linear .28s;
+  }
+  #settings-modal.open { display: flex; visibility: visible; opacity: 1; pointer-events: auto; transition-delay: 0s; }
+  .settings-panel {
+    width: min(600px, calc(100vw - 6vw));
+    max-height: min(820px, calc(100svh - 6vw));
+    padding: clamp(20px, 3.2vw, 30px) clamp(18px, 3.2vw, 30px) clamp(16px, 2.5vw, 22px);
+    overflow-y: auto;
+    color: var(--md-on-surface);
+    background: var(--md-surface-high);
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 24px;
+    box-shadow: var(--md-shadow);
+    transform: translateY(22px) scale(.96);
+    transition: transform .34s cubic-bezier(.2,.8,.2,1);
+    scrollbar-width: thin;
+    scrollbar-color: var(--md-primary) transparent;
+  }
+  #settings-modal.open .settings-panel { transform: translateY(0) scale(1); }
+  #settings-modal .settings-panel::-webkit-scrollbar { width: 8px; }
+  #settings-modal .settings-panel::-webkit-scrollbar-track { margin: 16px 0; background: transparent; }
+  #settings-modal .settings-panel::-webkit-scrollbar-thumb {
+    min-height: 42px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--md-primary);
+    background-clip: padding-box;
+    transition: background-color .2s ease;
+  }
+  #settings-modal .settings-panel::-webkit-scrollbar-thumb:hover { background-color: var(--md-primary-dark); }
+  .settings-panel h2 { margin-bottom: 22px; padding-bottom: 16px; color: var(--md-on-surface); border-bottom: 1px solid #e1e3e8; font-size: 22px; letter-spacing: .01em; }
+  .settings-panel h2 svg, .settings-panel h3 svg { color: var(--md-primary); }
+  .settings-group { margin: 0 0 18px; padding: 16px 18px 8px; border: 1px solid #e1e3e8; border-radius: 18px; background: rgba(255,255,255,.58); }
+  .settings-group h3 { margin-bottom: 14px; color: var(--md-on-surface); font-size: 13px; letter-spacing: .08em; }
+  .setting-item { min-height: 38px; margin-bottom: 8px; color: var(--md-on-surface-variant); }
+  .setting-item label { color: var(--md-on-surface-variant); font-size: 13px; }
+  .setting-item .val { color: var(--md-primary-dark); font-weight: 700; }
+  .setting-item input[type="range"] { accent-color: var(--md-primary); }
+  .setting-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--md-primary); }
+  .settings-close { margin-top: 8px; }
+  .settings-close button { min-width: 96px; background: var(--md-primary); color: var(--md-on-primary); box-shadow: 0 4px 10px rgba(255,109,0,.22); }
+
+  /* Material range slider and switch controls for the settings surface. */
+  #settings-modal .setting-item input[type="range"] {
+    width: 156px;
+    height: 20px;
+    margin: 0 8px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    background: transparent;
+  }
+  #settings-modal .setting-item input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 4px;
+    background: #d7d9df;
+  }
+  #settings-modal .setting-item input[type="range"]::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    border-radius: 50%;
+    background: var(--md-primary);
+    box-shadow: 0 1px 4px rgba(28,31,39,.28);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  #settings-modal .setting-item input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.16);
+    box-shadow: 0 0 0 8px rgba(255,109,0,.14), 0 1px 4px rgba(28,31,39,.28);
+  }
+  #settings-modal .setting-item input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 4px;
+    background: #d7d9df;
+  }
+  #settings-modal .setting-item input[type="range"]::-moz-range-progress {
+    height: 4px;
+    border-radius: 4px;
+    background: var(--md-primary);
+  }
+  #settings-modal .setting-item input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--md-primary);
+    box-shadow: 0 1px 4px rgba(28,31,39,.28);
+  }
+  #settings-modal .setting-item input[type="checkbox"] {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    margin: 0 2px;
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 38px;
+    border: 2px solid #7a7d86;
+    border-radius: 999px;
+    background: #e2e3e8;
+    cursor: pointer;
+    transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  #settings-modal .setting-item input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(28,31,39,.3);
+    transition: transform .2s cubic-bezier(.2,.8,.2,1), width .2s ease, height .2s ease, top .2s ease;
+  }
+  #settings-modal .setting-item input[type="checkbox"]:checked {
+    border-color: var(--md-primary);
+    background: var(--md-primary);
+    box-shadow: 0 0 0 4px rgba(255,109,0,.12);
+  }
+  #settings-modal .setting-item input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+  }
+  #settings-modal .setting-item input[type="checkbox"]:focus-visible,
+  #settings-modal .setting-item input[type="range"]:focus-visible {
+    outline: 3px solid rgba(255,109,0,.26);
+    outline-offset: 3px;
+  }
+
+  .md-ripple { position: absolute; border-radius: 50%; pointer-events: none; background: currentColor; opacity: .18; transform: scale(0); animation: md-ripple .55s ease-out; }
+  @keyframes md-ripple { to { opacity: 0; transform: scale(3.5); } }
+  @media (prefers-reduced-motion: reduce) {
+    #load-screen > .logo-svg, #load-screen > .home-welcome, #load-screen > p, #load-screen > .file-row, #load-screen > #settings-toggle { animation: none; opacity: 1; transform: none; }
+    #load-screen .btn, #settings-modal button, #settings-modal, .settings-panel { transition-duration: .01ms; }
+  }
 

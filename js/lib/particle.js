@@ -61,16 +61,19 @@ class Particle {
         }
       }
     } else {
-      // Grow from 0 to full size using a faster exponential easing than movement.
-      sizeScale = this.sizeScale;
-      this.sizeScale += (1 - this.sizeScale) * (1 - Math.pow(2, -20 * dt));
+      // Particles grow with an ease-out cubic curve, then shrink with an ease-in-out sine curve.
+      // Keep the growth window short enough to finish before the particle's
+      // existing early alpha fade makes it invisible.
+      const growDuration = Math.min(0.2, this.lifetime * 0.5);
+      const growT = Math.min(this.lived / growDuration, 1);
+      sizeScale = 1 - Math.pow(1 - growT, 3);
     }
     const shrinkDuration = 0.3;
     const timeLeft = this.lifetime - this.lived;
     if (timeLeft < shrinkDuration && shrinkDuration > 0) {
       const shrinkT = 1 - timeLeft / shrinkDuration;
-      const easeInQuint = shrinkT * shrinkT * shrinkT * shrinkT * shrinkT;
-      sizeScale *= 1 - 0.98 * easeInQuint;
+      const easeInOutSine = (1 - Math.cos(Math.PI * shrinkT)) / 2;
+      sizeScale *= 1 - 0.98 * easeInOutSine;
     }
     const size = this.baseSize * sizeScale;
     this.size = size;

@@ -567,7 +567,10 @@ drawNotesOnLine(jl, beat, filter) {
       const scaleFactor = (isMH && this.mhScale) ? this.mhScale : 1.0;
       const w = baseW * scaleFactor;
 
-      if (holdParts && holdParts.tail && holdParts.tail.complete && holdParts.body && holdParts.body.complete && holdParts.head && holdParts.head.complete && w * (holdParts.tail.height / holdParts.tail.width) >= 3 && w * (holdParts.head.height / holdParts.head.width) >= 3) {
+      // Keep using the split head/body/tail atlas at very small note widths. Falling back
+      // to the whole atlas based on rendered height makes a thin hold sample unrelated
+      // atlas cells and produces the visible texture glitch.
+      if (holdParts && holdParts.tail && holdParts.tail.complete && holdParts.tail.width > 0 && holdParts.tail.height > 0 && holdParts.body && holdParts.body.complete && holdParts.body.width > 0 && holdParts.body.height > 0 && holdParts.head && holdParts.head.complete && holdParts.head.width > 0 && holdParts.head.height > 0) {
         const tailImg = holdParts.tail;
         const bodyImg = holdParts.body;
         const headImg = holdParts.head;
@@ -867,10 +870,12 @@ preTintedBody(bodyTex, tint) {
 },
 drawNoteImage(ctx, img, dx, dy, dw, dh, tint, alpha, sx, sy, sw, sh) {
   if (!img || !img.complete) return;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dw) || !Number.isFinite(dh) || dw === 0 || dh === 0) return;
   const isWhite = !tint || (tint[0] >= 255 && tint[1] >= 255 && tint[2] >= 255);
   const hasCrop = (sx !== undefined && sy !== undefined && sw !== undefined && sh !== undefined);
   const cSX = hasCrop ? sx : 0, cSY = hasCrop ? sy : 0;
   const cSW = hasCrop ? sw : img.width, cSH = hasCrop ? sh : img.height;
+  if (!Number.isFinite(cSX) || !Number.isFinite(cSY) || !Number.isFinite(cSW) || !Number.isFinite(cSH) || cSW === 0 || cSH === 0) return;
   // Always flip negative sizes with scale, since drawImage with negative sw/sh does not work in some environments
   const vFlip = cSH < 0, hFlip = cSW < 0;
   const sSX = hFlip ? cSX + cSW : cSX;
@@ -932,7 +937,7 @@ drawNoteImage(ctx, img, dx, dy, dw, dh, tint, alpha, sx, sy, sw, sh) {
     } else {
       if (!this._tintCanvas) { this._tintCanvas = document.createElement('canvas'); this._tintCtx = null; }
       const tc = this._tintCanvas;
-      const tw = Math.ceil(dw), th = Math.ceil(dh);
+      const tw = Math.max(1, Math.ceil(Math.abs(dw))), th = Math.max(1, Math.ceil(Math.abs(dh)));
       // Fallback path (cropped hold-body slices, or sprites that cannot be cached): resize
       // only when the size actually changes and keep the 2D context instead of re-fetching it.
       if (tc.width !== tw) tc.width = tw;

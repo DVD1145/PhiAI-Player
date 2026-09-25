@@ -233,15 +233,60 @@ loadChart(jsonData) {
     const layers = jl.eventLayers || jl.event_layers || [];
     const merged = { speedEvents: [], moveXEvents: [], moveYEvents: [], rotateEvents: [], alphaEvents: [] };
     const layered = { X: [], Y: [], R: [], A: [] };
+    const speedLayers = [];
     for (const layer of layers) {
       if (!layer) continue;
-      if (layer.speedEvents) merged.speedEvents.push(...layer.speedEvents);
+      if (layer.speedEvents) {
+        const events = layer.speedEvents.slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime));
+        merged.speedEvents.push(...events);
+        speedLayers.push(events);
+      }
       if (layer.moveXEvents) { merged.moveXEvents.push(...layer.moveXEvents); layered.X.push(layer.moveXEvents.slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime))); }
       if (layer.moveYEvents) { merged.moveYEvents.push(...layer.moveYEvents); layered.Y.push(layer.moveYEvents.slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime))); }
       if (layer.rotateEvents) { merged.rotateEvents.push(...layer.rotateEvents); layered.R.push(layer.rotateEvents.slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime))); }
       if (layer.alphaEvents) { merged.alphaEvents.push(...layer.alphaEvents); layered.A.push(layer.alphaEvents.slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime))); }
     }
     for (const k of Object.keys(merged)) merged[k].sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime));
+    // RPE speed layers are additive too. Keep the first layer's implicit base
+    // speed of 1 and treat later layers as zero-based additive overlays.
+    if (speedLayers.length > 1) {
+      const speedBeats = new Set([0]);
+      for (const events of speedLayers) {
+        for (const e of events) {
+          speedBeats.add(tripleToBeat(e.startTime));
+          speedBeats.add(tripleToBeat(e.endTime));
+        }
+      }
+      const points = Array.from(speedBeats).filter(Number.isFinite).sort((a, b) => a - b);
+      const speedAt = (beat) => speedLayers.reduce((sum, events, index) => sum + evaluateEvent(events, beat, index === 0 ? 1 : 0), 0);
+      const additiveSpeedEvents = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        const startBeat = points[i], endBeat = points[i + 1];
+        if (endBeat <= startBeat) continue;
+        additiveSpeedEvents.push({
+          startTime: [startBeat, 0, 1],
+          endTime: [endBeat, 0, 1],
+          start: speedAt(startBeat),
+          end: speedAt(endBeat),
+          easingType: 1,
+          easingLeft: 0,
+          easingRight: 1,
+        });
+      }
+      if (points.length) {
+        const last = points[points.length - 1];
+        additiveSpeedEvents.push({
+          startTime: [last, 0, 1],
+          endTime: [last, 0, 1],
+          start: speedAt(last),
+          end: speedAt(last),
+          easingType: 1,
+          easingLeft: 0,
+          easingRight: 1,
+        });
+      }
+      merged.speedEvents = additiveSpeedEvents;
+    }
     // RPE extended.inclineEvents: judge line incline events (single layer, not stacked; default 0.0)
     const inclineEvents = ((jl.extended && (jl.extended.inclineEvents || jl.extended.incline_events)) || [])
       .slice().sort((a, b) => tripleToBeat(a.startTime) - tripleToBeat(b.startTime));
@@ -490,10 +535,12 @@ loadChart(jsonData) {
     totalNotes = this.notes.filter(n => !n.isFake).length;
     for (const n of this.notes) maxBeat = Math.max(maxBeat, n.endTime);
 
-    // Chord detection: at the same time (across all judge lines) >= 2 non-fake tap/hold/flick notes mark the note as double
+    for (const n of this.notes) n.double = false;
+    // Chord detection includes fake notes for visual multi-note support. Fake notes
+    // remain excluded from judging and scoring by the input/judgement paths.
     const doubleMap = new Map();
     for (const n of this.notes) {
-      if (n.isFake || !(n.type === 1 || n.type === 2 || n.type === 3)) continue;
+      if (!(n.type === 1 || n.type === 2 || n.type === 3)) continue;
       const key = n.startTime;
       if (!doubleMap.has(key)) doubleMap.set(key, []);
       doubleMap.get(key).push(n);
@@ -545,7 +592,7 @@ buildNoteObject(n, li) {
     positionY: n.positionY || 0,
     yOffset: n.yOffset || 0,
     alpha: n.alpha ?? 255,
-    isFake: n.isFake || 0,
+    isFake: n.isFake === true || n.isFake === 1 || String(n.isFake).trim().toLowerCase() === 'true' || String(n.isFake).trim() === '1' ? 1 : 0,
     size: n.size ?? 1.0,
     speed: n.speed ?? 1.0,
     visibleTime: n.visibleTime ?? 999999,
