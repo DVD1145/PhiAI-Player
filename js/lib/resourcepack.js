@@ -147,27 +147,22 @@ class ResourcePackLoader {
       ending: await loadAudioFromZip('ending'),
     };
 
-    let colorPerfect = null;
-    let colorGood = null;
-    let holdSFX = false;
-    let goodHitFX = false;
+    let colorPerfect = firstTruthy(getInfoValue('colorPerfect', 'color_perfect', 'colorperfect'), getInfoValue('ColorPerfect')) || null;
+    let colorGood = firstTruthy(getInfoValue('colorGood', 'color_good', 'colorgood'), getInfoValue('ColorGood')) || null;
+    let holdSFX = parseTruthy(firstTruthy(getInfoValue('HoldSFX', 'holdSFX', 'hold_sfx', 'holdsfx'), getInfoValue('HoldSfx')));
+    let goodHitFX = parseTruthy(firstTruthy(getInfoValue('GoodHitFX', 'goodHitFX', 'good_hit_fx', 'goodhitfx'), getInfoValue('GoodHitFx')));
     let holdSoundBuffer = null;
     let goodHitFxImage = null;
 
-    if (extensionEnabled) {
-      colorPerfect = firstTruthy(getInfoValue('colorPerfect', 'color_perfect', 'colorperfect'), getInfoValue('ColorPerfect')) || null;
-      colorGood = firstTruthy(getInfoValue('colorGood', 'color_good', 'colorgood'), getInfoValue('ColorGood')) || null;
-      holdSFX = parseTruthy(firstTruthy(getInfoValue('HoldSFX', 'holdSFX', 'hold_sfx', 'holdsfx'), getInfoValue('HoldSfx')));
-      goodHitFX = parseTruthy(firstTruthy(getInfoValue('GoodHitFX', 'goodHitFX', 'good_hit_fx', 'goodhitfx'), getInfoValue('GoodHitFx')));
-
-      if (holdSFX) {
-        holdSoundBuffer = await loadAudioFromZip('Hold');
-        if (!holdSoundBuffer) console.warn('[RP] HoldSFX 启用但未找到 Hold 音效');
-      }
-      if (goodHitFX) {
-        goodHitFxImage = await loadImageFromZip('hit_fx2.png');
-        if (!goodHitFxImage) console.warn('[RP] GoodHitFX 启用但未找到 hit_fx2.png');
-      }
+    // These settings are used by common resource packs even when the optional
+    // PhiAI/AiRE marker section is absent from info.yml.
+    if (holdSFX) {
+      holdSoundBuffer = await loadAudioFromZip('Hold');
+      if (!holdSoundBuffer) console.warn('[RP] HoldSFX 启用但未找到 Hold 音效');
+    }
+    if (goodHitFX) {
+      goodHitFxImage = await loadImageFromZip('hit_fx2.png');
+      if (!goodHitFxImage) console.warn('[RP] GoodHitFX 启用但未找到 hit_fx2.png');
     }
 
     console.log('[RP] 资源包加载完成');

@@ -9,26 +9,20 @@ Object.assign(EnhancedRPEPlayer.prototype, {
     this.hitFxImage = result.textures.hit_fx;
     this.goodHitFxImage = result.goodHitFxImage || null;
 
-    if (result.extensionEnabled) {
-      this.colorPerfect = result.colorPerfect || null;
-      this.colorGood = result.colorGood || null;
-      this.holdSFXEnabled = result.holdSFX || false;
-      if (this.holdSFXEnabled && result.holdSoundBuffer) {
-        if (!this.audioCtx) {
-          this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        try {
-          const buf = await this.audioCtx.decodeAudioData(result.holdSoundBuffer);
-          this.audioBuffers['hold'] = buf;
-          console.log('[Player] Hold 音效已加载');
-        } catch (e) {
-          console.warn('[Player] Hold 音效解码失败', e);
-        }
+    this.colorPerfect = result.colorPerfect || null;
+    this.colorGood = result.colorGood || null;
+    this.holdSFXEnabled = result.holdSFX || false;
+    if (this.holdSFXEnabled && result.holdSoundBuffer) {
+      if (!this.audioCtx) {
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
-    } else {
-      this.colorPerfect = null;
-      this.colorGood = null;
-      this.holdSFXEnabled = false;
+      try {
+        const buf = await this.audioCtx.decodeAudioData(result.holdSoundBuffer);
+        this.audioBuffers['hold'] = buf;
+        console.log('[Player] Hold 音效已加载');
+      } catch (e) {
+        console.warn('[Player] Hold 音效解码失败', e);
+      }
     }
 
     const clickW = this.noteTextures.click ? this.noteTextures.click.width : 1;
@@ -45,16 +39,30 @@ Object.assign(EnhancedRPEPlayer.prototype, {
       duration: 0.5, scale: 1.0, rotate: false, holdRepeat: false,
       holdKeepHead: false, holdCompact: false, hideParticles: false, hitFxTinted: true,
     };
-    if (result.extensionEnabled) {
-      this.hitFxAtlasConfig.duration = result.info.hitFxDuration || result.info.hit_fx_duration || 0.5;
-      this.hitFxAtlasConfig.scale = result.info.hitFxScale || result.info.hit_fx_scale || 1.0;
-      this.hitFxAtlasConfig.rotate = !!(result.info.hitFxRotate || result.info.hit_fx_rotate);
-      this.hitFxAtlasConfig.holdRepeat = !!(result.info.holdRepeat || result.info.hold_repeat);
-      this.hitFxAtlasConfig.holdKeepHead = !!(result.info.holdKeepHead || result.info.hold_keep_head);
-      this.hitFxAtlasConfig.holdCompact = !!(result.info.holdCompact || result.info.hold_compact);
-      this.hitFxAtlasConfig.hideParticles = !!(result.info.hideParticles || result.info.hide_particles);
-      this.hitFxAtlasConfig.hitFxTinted = result.info.hitFxTinted !== undefined ? !!result.info.hitFxTinted : (result.info.hit_fx_tinted !== undefined ? !!result.info.hit_fx_tinted : true);
-    }
+    const infoValue = (...keys) => {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(result.info || {}, key)) return result.info[key];
+        const match = Object.keys(result.info || {}).find(k => k.toLowerCase() === String(key).toLowerCase());
+        if (match) return result.info[match];
+      }
+      return undefined;
+    };
+    const boolValue = (value, fallback = false) => {
+      if (value === undefined || value === null || value === '') return fallback;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      return ['1', 'true', 'yes', 'y', 'on'].includes(String(value).trim().toLowerCase());
+    };
+    const duration = Number(infoValue('hitFxDuration', 'hit_fx_duration'));
+    const scale = Number(infoValue('hitFxScale', 'hit_fx_scale'));
+    this.hitFxAtlasConfig.duration = Number.isFinite(duration) && duration > 0 ? duration : 0.5;
+    this.hitFxAtlasConfig.scale = Number.isFinite(scale) && scale > 0 ? scale : 1.0;
+    this.hitFxAtlasConfig.rotate = boolValue(infoValue('hitFxRotate', 'hit_fx_rotate'));
+    this.hitFxAtlasConfig.holdRepeat = boolValue(infoValue('holdRepeat', 'hold_repeat'));
+    this.hitFxAtlasConfig.holdKeepHead = boolValue(infoValue('holdKeepHead', 'hold_keep_head'));
+    this.hitFxAtlasConfig.holdCompact = boolValue(infoValue('holdCompact', 'hold_compact'));
+    this.hitFxAtlasConfig.hideParticles = boolValue(infoValue('hideParticles', 'hide_particles'));
+    this.hitFxAtlasConfig.hitFxTinted = boolValue(infoValue('hitFxTinted', 'hit_fx_tinted'), true);
 
 this.holdParts = await this.splitHoldTextures(this.noteTextures.hold, result.holdAtlas);
   this.holdPartsMH = await this.splitHoldTextures(this.noteTextures.hold_mh, result.holdAtlasMH);
