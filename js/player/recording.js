@@ -455,18 +455,50 @@ _drawRecHud(ct, opts) {
     ctx.fillText(String(sc).padStart(7, '0'), w - 30 * uis, (20 * uisCss + (D.score != null ? D.score : fallbackA(ctx.font.split('px')[0]))) * S);
   });
 
-  // Combo number + label (top-center); label mirrors updateScoreDisplay (AP / FC / AUTOPLAY / COMBO)
-  if (this.combo >= 3) {
+  // Combo number + label (top-center); label mirrors updateScoreDisplay (AP / FC / AUTOPLAY / COMBO). LIFE mode always shows it.
+  if (this.lifeMode || this.combo >= 3) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    let label = this.autoplay ? 'AUTOPLAY' : 'COMBO';
+    const life = !!this.lifeMode;
+    let label = life ? 'LIFE' : (this.autoplay ? 'AUTOPLAY' : 'COMBO');
+    const num = life ? String(Math.max(0, this.lifeValue)) : String(this.combo);
     drawTF('combonumber', '#fff', () => {
       ctx.font = (54 * uis) + uiF;
-      ctx.fillText(String(this.combo), w / 2, (6 * uisCss + (D.combonumber != null ? D.combonumber : fallbackA(ctx.font.split('px')[0]))) * S);
+      const y = (6 * uisCss + (D.combonumber != null ? D.combonumber : fallbackA(ctx.font.split('px')[0]))) * S;
+      if (life) {
+        ctx.shadowColor = 'rgba(255,0,0,0.9)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.fillStyle = '#000';
+        ctx.strokeStyle = 'rgba(255,0,0,0.8)';
+        ctx.lineWidth = Math.max(1, 2 * uis);
+        ctx.lineJoin = 'round';
+        ctx.strokeText(num, w / 2, y);
+        ctx.fillText(num, w / 2, y);
+      } else {
+        // Normal mode: let the chart color event (set by drawTF via tt.color) tint the digit
+        ctx.fillText(String(this.combo), w / 2, y);
+      }
     });
     drawTF('combo', '#E7E7E7', () => {
       ctx.font = (18 * 0.965 * uis) + uiF;
-      ctx.fillText(label, w / 2, (54 * uisCss + (D.combo != null ? D.combo : fallbackA(ctx.font.split('px')[0]))) * S);
+      const y = (54 * uisCss + (D.combo != null ? D.combo : fallbackA(ctx.font.split('px')[0]))) * S;
+      if (life) {
+        ctx.shadowColor = 'rgba(255,0,0,0.9)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.fillStyle = '#000';
+        ctx.strokeStyle = 'rgba(255,0,0,0.8)';
+        ctx.lineWidth = Math.max(1, 2 * uis);
+        ctx.lineJoin = 'round';
+        ctx.strokeText(label, w / 2, y);
+        ctx.fillText(label, w / 2, y);
+      } else {
+        // Normal mode: let the chart color event (set by drawTF via t.color) tint the label
+        ctx.fillText(this.autoplay ? 'AUTOPLAY' : 'COMBO', w / 2, y);
+      }
     });
   }
 

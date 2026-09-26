@@ -165,6 +165,11 @@ class EnhancedRPEPlayer {
   this.comboNumber = document.getElementById('combo-number');
   this.comboLabel = document.getElementById('combo-label');
   this.scoreDisplay = document.getElementById('score-display');
+  // Phigros 4.0.0 LIFE mode: console-enabled play UI override (not persisted).
+  // When on, the combo area is always visible, shows "LIFE" with a fixed number,
+  // black text with a red shadow outline, plus a red glow at the very top-center.
+  this.lifeMode = false;
+  this.lifeValue = 100;
   this.titleDisplay = document.getElementById('title-display');
   this.difficultyDisplay = document.getElementById('difficulty-display');
   this.statusMsg = document.getElementById('status-msg');

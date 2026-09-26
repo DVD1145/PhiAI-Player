@@ -43,17 +43,26 @@ updateScoreDisplay() {
     this.scoreDisplay.textContent = String(clamped).padStart(7, '0');
   }
 
-  const showCombo = this.combo >= 3;
-  this._setComboLabel(this.autoplay ? 'AUTOPLAY' : 'COMBO');
+  const life = this.lifeMode;
+  const showCombo = life ? true : (this.combo >= 3);
+  this._setComboLabel(life ? 'LIFE' : (this.autoplay ? 'AUTOPLAY' : 'COMBO'));
+  if (life) {
+    const lifeNum = String(Math.max(0, this.lifeValue));
+    if (this._lastComboShown !== lifeNum) {
+      this._lastComboShown = lifeNum;
+      this.comboNumber.textContent = lifeNum;
+    }
+  }
 
   if (this._lastComboDisp !== showCombo) {
     this._lastComboDisp = showCombo;
     this.comboArea.style.display = showCombo ? 'block' : 'none';
   }
-  if (showCombo && this._lastComboShown !== this.combo) {
+  if (!life && showCombo && this._lastComboShown !== this.combo) {
     this._lastComboShown = this.combo;
     this.comboNumber.textContent = this.combo;
   }
+  if (this.comboArea) this.comboArea.classList.toggle('life-mode', life);
 
   const progress = this.totalSeconds > 0 ? Math.min(1, this.getCurrentTime() / this.totalSeconds) : 0;
   const fillWidth = progress * 100;

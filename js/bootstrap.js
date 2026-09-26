@@ -37,6 +37,25 @@ document.addEventListener('pointerdown', (e) => {
 const canvas = document.getElementById('game-canvas');
 const player = new EnhancedRPEPlayer(canvas);
 window.playerRef = player; // Top-level consts are not exposed on window; the custom UI runtime needs to reference them
+// Phigros 4.0.0 LIFE mode console command:
+//   lifeMode()        -> toggle on/off
+//   lifeMode(true)    -> on,    lifeMode(false) -> off
+//   lifeMode(100)     -> set LIFE number to 100 (stays in LIFE mode)
+//   lifeMode(0)       -> set LIFE number to 0
+window.lifeMode = function (v) {
+  if (typeof v === 'number') {
+    player.lifeMode = true;
+    player.lifeValue = v;
+  } else if (typeof v === 'boolean' || v === undefined) {
+    player.lifeMode = typeof v === 'boolean' ? v : !player.lifeMode;
+  }
+  if (player.comboArea) player.comboArea.classList.toggle('life-mode', player.lifeMode);
+  player._lastComboDisp = undefined;
+  player._lastComboShown = undefined;
+  if (player.updateAutoplayStatus) player.updateAutoplayStatus();
+  console.log('[LIFE] mode = ' + player.lifeMode + ', value = ' + player.lifeValue);
+  return player.lifeMode;
+};
 player.loadBuiltinPack();
 
 function formatClock(s) {

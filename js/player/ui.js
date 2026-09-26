@@ -69,7 +69,9 @@ updateUI() {
 
     const transform = this.uiTransforms[key];
     const scaleStr = transform ? ` scale(${transform.scaleX}, ${transform.scaleY})` : '';
-    const uiColor = transform && transform.color ? `rgb(${transform.color[0]},${transform.color[1]},${transform.color[2]})` : '';
+    // In LIFE mode the combo number / label keep their own fixed look and must not be recolored by chart color events
+    const lifeCombo = this.lifeMode && (key === 'combonumber' || key === 'combo');
+    const uiColor = (transform && transform.color && !lifeCombo) ? `rgb(${transform.color[0]},${transform.color[1]},${transform.color[2]})` : '';
 
     // Entrance slide offset: within the first 1s after entering a chart, the UI slides back from below the screen to its place (easeOutExpo; progress bar / combo / combo label excluded).
     // UI hidden by the chart (display:none or opacity 0) is skipped; UI moved elsewhere by the chart is offset on top of its final position.

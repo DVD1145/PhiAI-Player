@@ -92,43 +92,163 @@ Object.assign(EnhancedRPEPlayer.prototype, {
     this.bgEmitter.draw(ctx, { x: w/2, y: h/2 });
   }
 
-  // Judge lines and notes
+  // Judge lines and notes. LIFE mode separates the two layers so the top fade
+  // mask can cover the judge lines while the notes stay bright on top of it.
   const sortedLines = this._sortedDrawLines();
-  for (const jl of sortedLines) {
-    if (jl.alpha < 0) continue;
-    // isCover = 1: back notes first -> judge line -> front notes
-    // isCover = 0: judge line -> all notes
-    if (jl.isCover) this.drawNotesOnLine(jl, beat, 'back');
-    if (jl.hasTextEvents || jl.hasPaintEvents) {
-      // Skip drawing the line (RPE: a line with text / paint events always has opacity 0)
-    } else {
-      this.drawJudgeLine(jl);
-    }
-    if (jl.hasPaintEvents) this.updatePaintLine(jl, currentTime);
-    this.drawImageEvents(jl, beat, currentTime);
-    if (jl.isCover) {
-      this.drawNotesOnLine(jl, beat, 'front');
-    } else {
-      this.drawNotesOnLine(jl, beat);
-    }
-    this.drawTextEvent(jl);
 
-    if (this.settings.lineNumbers) {
-      this.drawLineDebug(jl);
+  if (this.lifeMode) {
+    // Pass 1: judge lines (and cover-line back notes) + paint/image events
+    for (const jl of sortedLines) {
+      if (jl.alpha < 0) continue;
+      if (jl.isCover) this.drawNotesOnLine(jl, beat, 'back');
+      if (jl.hasTextEvents || jl.hasPaintEvents) {
+        // Skip drawing the line (RPE: a line with text / paint events always has opacity 0)
+      } else {
+        this.drawJudgeLine(jl);
+      }
+      if (jl.hasPaintEvents) this.updatePaintLine(jl, currentTime);
+      this.drawImageEvents(jl, beat, currentTime);
+    }
+
+    // LIFE mode: static black fade across the top, over the judge lines but under the notes
+    if (w > 0 && h > 0) {
+      const gh = Math.max(40, h * 0.3);
+      const mg = ctx.createLinearGradient(0, 0, 0, gh);
+      mg.addColorStop(0, 'rgba(0,0,0,0.85)');
+      mg.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+      mg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = mg;
+      ctx.fillRect(0, 0, w, gh);
+    }
+
+    // LIFE mode: thin red light bars, beneath the notes (so notes stay on top)
+    if (w > 0 && h > 0) {
+      // Dense rows of thin red light bars at the top (default angle 90deg = vertical).
+      // The band reaches about past the combo-label bottom. Lines lean progressively:
+      // 0deg at the horizontal centre, up to 20deg at the far edges, left half -deg,
+      // right half +deg. Every bar is a single-direction vertical-fade sprite. Lines
+      // far from the centre are dimmer and shorter, and every line independently
+      // fades out and back in at its own random pace (visible -> gone -> visible).
+      const uis = Math.min(w / 1350, h / 900) * 1.43;
+      const bandH = (6 + 54 + 18 * 0.965 + 64) * 0.9 * uis; // top of combo-area, past the combo-label bottom
+      const n = Math.max(36, Math.round(w / 18)); // very dense, ~18px per column
+      const step = w / n;
+      const barW = Math.min(3, step * 0.24); // rendered half-width of the glow blur
+      const kMax = 20 * Math.PI / 180; // up to 20 degrees at the far edges
+      const now = currentTime;
+      // Pre-composite the glow sprite once: a single-direction vertical fade only —
+      // bright at the very top, fading downward to transparent. No symmetric
+      // two-sided blur, so every line reads as one red ray dropping from the top.
+      let spr = this._lifeBarSpr;
+      if (!spr) {
+        spr = this._lifeBarSpr = document.createElement('canvas');
+        spr.width = 128; spr.height = 128;
+        const sc = spr.getContext('2d');
+        const vg = sc.createLinearGradient(0, 0, 0, 128);
+        vg.addColorStop(0, 'rgba(255,25,25,1)');
+        vg.addColorStop(0.3, 'rgba(255,18,18,0.9)');
+        vg.addColorStop(0.55, 'rgba(240,8,8,0.6)');
+        vg.addColorStop(0.82, 'rgba(190,0,0,0.28)');
+        vg.addColorStop(1, 'rgba(0,0,0,0)');
+        sc.fillStyle = vg;
+        sc.fillRect(0, 0, 128, 128);
+      }
+      ctx.save();
+      const cxx = w / 2;
+      for (let i = 0; i < n; i++) {
+        const x = step * (i + 0.5);
+        const side = x < w / 2 ? -1 : 1; // left half -> -deg (/), right half -> +deg (\)
+        // Angle grows with distance from the horizontal centre (0deg in the middle,
+        // up to 20deg near the edges, opposite signs on each half)
+        const frac = Math.max(0, Math.min(1, Math.abs(x - cxx) / cxx));
+        const ang = side * kMax * frac;
+        // Per-line deterministic randomness
+        const r1 = Math.sin(i * 12.9898 + 78.233) * 23423.5;
+        const r2 = Math.sin(i * 78.42 + 23.11) * 5678.3;
+        const rndA = r1 - Math.floor(r1);
+        const rndB = r2 - Math.floor(r2);
+        // Edge fade: lines far from the horizontal centre are dimmer
+        const edge = Math.max(0, 1 - Math.abs(x - cxx) / cxx);
+        const edgeFade = Math.pow(edge, 1.05);
+        // Length shrinks away from the centre (top-anchored, still fading downward)
+        const len = bandH * (0.5 + 0.5 * edgeFade);
+        // Independent breathing: each line fades out and back in at its own pace
+        const cycle = 0.4 + rndA * 0.7;               // random breath period (0.4s..1.1s)
+        const phase = rndB * Math.PI * 2;           // random phase
+        const wav = 0.5 + 0.5 * Math.sin(now / cycle * Math.PI * 2 + phase);
+        const breath = 0.12 + 0.88 * wav;           // 0.12 .. 1.0 -> visible -> gone -> back
+        const alpha = Math.max(0, Math.min(1, edgeFade * breath));
+        ctx.save();
+        ctx.translate(x, 0);
+        ctx.rotate(ang);
+        if (alpha > 0.02) {
+          ctx.globalAlpha = Math.min(1, alpha * 1.15);
+          ctx.drawImage(spr, -barW * 2.6, 0, barW * 5.2, len);
+        }
+        // The blurred bar itself
+        ctx.globalAlpha = Math.min(1, alpha);
+        ctx.drawImage(spr, -barW, 0, barW * 2, len);
+        // Thin bright core keeps the "line" readable
+        ctx.globalAlpha = Math.min(1, alpha * 1.08 + 0.12);
+        ctx.drawImage(spr, -barW * 0.22, 0, barW * 0.44, len);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Pass 2: notes + text events over the fade
+    for (const jl of sortedLines) {
+      if (jl.alpha < 0) continue;
+      if (jl.isCover) {
+        this.drawNotesOnLine(jl, beat, 'front');
+      } else {
+        this.drawNotesOnLine(jl, beat);
+      }
+      this.drawTextEvent(jl);
+
+      if (this.settings.lineNumbers) {
+        this.drawLineDebug(jl);
+      }
+    }
+  } else {
+    for (const jl of sortedLines) {
+      if (jl.alpha < 0) continue;
+      // isCover = 1: back notes first -> judge line -> front notes
+      // isCover = 0: judge line -> all notes
+      if (jl.isCover) this.drawNotesOnLine(jl, beat, 'back');
+      if (jl.hasTextEvents || jl.hasPaintEvents) {
+        // Skip drawing the line (RPE: a line with text / paint events always has opacity 0)
+      } else {
+        this.drawJudgeLine(jl);
+      }
+      if (jl.hasPaintEvents) this.updatePaintLine(jl, currentTime);
+      this.drawImageEvents(jl, beat, currentTime);
+      if (jl.isCover) {
+        this.drawNotesOnLine(jl, beat, 'front');
+      } else {
+        this.drawNotesOnLine(jl, beat);
+      }
+      this.drawTextEvent(jl);
+
+      if (this.settings.lineNumbers) {
+        this.drawLineDebug(jl);
+      }
     }
   }
 
-  // Hit rings (disabled during warm-up so no leftover effect shows once real play starts)
-  if (!this._suppressJudgeFx) {
-    for (const eff of this.judgeEffects) {
-      this.drawJudgeEffect(eff);
-    }
-  }
-
-  // Particle bursts (disabled during warm-up so no leftover effect shows once real play starts)
+  // Particle bursts (lowest layer: drawn first, the hit-fx body then covers them)
+  // (disabled during warm-up so no leftover effect shows once real play starts)
   if (!this._suppressJudgeFx) {
     for (const emitter of this.particleEmitters) {
       emitter.draw(ctx, { x: 0, y: 0 });
+    }
+  }
+
+  // Hit rings / body (on top of the particles; disabled during warm-up so no leftover effect shows once real play starts)
+  if (!this._suppressJudgeFx) {
+    for (const eff of this.judgeEffects) {
+      this.drawJudgeEffect(eff);
     }
   }
 
@@ -1043,7 +1163,9 @@ drawTextEvent(jl) {
 drawJudgeEffect(eff) {
   const ctx = this.ctx;
   const lifeRatio = eff.life;
-  const alpha = Math.max(0, lifeRatio);
+  // Phigros-spec body fade: alpha = 1 - progress*(1 - HIT_ALPHA) with HIT_ALPHA=0.882,
+  // i.e. 1.0 -> 0.882 (barely fades; the sprite sheet itself carries the fade-out)
+  const alpha = 1 - (1 - Math.max(0, lifeRatio)) * (1 - 0.882);
   const r = eff.color[0], g = eff.color[1], b = eff.color[2];
   const img = eff.image || this.hitFxImage;
 

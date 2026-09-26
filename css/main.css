@@ -407,6 +407,16 @@ font-family: 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif
     transform-origin: center;
   }
 
+  /* Phigros 4.0.0 LIFE mode: black text with a red shadow outline */
+  #combo-area.life-mode #combo-number,
+  #combo-area.life-mode #combo-label {
+    color: #000;
+    text-shadow:
+      0 0 6px rgba(255, 0, 0, 0.9),
+      0 0 2px rgba(255, 0, 0, 0.9),
+      0 0 12px rgba(255, 0, 0, 0.7);
+  }
+
   #score-display {
     position: fixed;
     top: calc(20px * var(--uis, 1)); right: calc(30px * var(--uis, 1));
