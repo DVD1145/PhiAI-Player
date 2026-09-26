@@ -49,7 +49,7 @@ backToMenu() {
 updateTitleAndDifficulty() {
   const meta = this.chart?.META || {};
   this.titleDisplay.textContent = meta.name || 'Unknown';
-  this.difficultyDisplay.textContent = (meta.level !== undefined && meta.level !== null && meta.level !== '') ? String(meta.level) : '-';
+  this.difficultyDisplay.textContent = this.formatLevel(meta.level);
 },
 startUIEntrance(delay = 0) {
   const dir = {};

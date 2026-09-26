@@ -288,5 +288,12 @@ Object.assign(EnhancedRPEPlayer.prototype, {
   el.classList.add('show');
   clearTimeout(this._statusTimeout);
   this._statusTimeout = setTimeout(() => el.classList.remove('show'), 3000);
-}
+},
+  // Difficulty text formatting: if the level looks like "<token> Lv.X" (a single space
+  // before "Lv." with any prefix/level string), insert one more space so it reads
+  // "<token>  Lv.X". Non-matching values (e.g. "Hello, world Lv.15") stay untouched.
+  formatLevel(level) {
+    const s = (level !== undefined && level !== null && level !== '') ? String(level) : '-';
+    return /^(\S+) Lv\./.test(s) ? s.replace(/^(\S+) Lv\./, '$1  Lv.') : s;
+  }
 });

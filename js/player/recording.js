@@ -424,7 +424,7 @@ _drawRecHud(ct, opts) {
   ctx.lineJoin = 'round';
   const meta = (this.chart && this.chart.META) || {};
   const name = (meta.name || meta.title || meta.songName || '-').toString();
-  const lv = (meta.level !== undefined && meta.level !== null && meta.level !== '') ? String(meta.level) : '-';
+  const lv = this.formatLevel(meta.level);
 
   // Title (bottom-left) + difficulty (bottom-right)
   if (name && name !== '-') {
