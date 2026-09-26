@@ -452,7 +452,7 @@ _drawRecHud(ct, opts) {
     try { sc = this.computeScore(); } catch (e) { sc = 0; }
     sc = Math.min(1000000, Math.max(0, sc));
     ctx.font = (36 * uis) + "px 'AppFont','Segoe UI','PingFang SC','Microsoft YaHei','Consolas',monospace";
-    ctx.fillText(String(sc).padStart(7, '0'), w - 24 * uis, (20 * uisCss + (D.score != null ? D.score : fallbackA(ctx.font.split('px')[0]))) * S);
+    ctx.fillText(String(sc).padStart(7, '0'), w - 30 * uis, (20 * uisCss + (D.score != null ? D.score : fallbackA(ctx.font.split('px')[0]))) * S);
   });
 
   // Combo number + label (top-center); label mirrors updateScoreDisplay (AP / FC / AUTOPLAY / COMBO)
@@ -494,7 +494,7 @@ _drawRecHud(ct, opts) {
       const vs = isz / 41;
       const ox = (isz - 37 * vs) / 2;
       ctx.save();
-      ctx.translate(20 * uis + ox, 26 * uis);
+      ctx.translate(30 * uis + ox, 26 * uis);
       ctx.scale(vs, vs);
       ctx.fillRect(0, 0, 11, 39);
       ctx.fillRect(22, 0, 11, 39);

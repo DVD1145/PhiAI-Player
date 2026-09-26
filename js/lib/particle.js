@@ -21,10 +21,40 @@ class Particle {
     this.color = { r: config.baseColor.r, g: config.baseColor.g, b: config.baseColor.b, a: config.baseColor.a };
     this.frame = 0;
     this.config = config;
+    this.startDelay = 0;
+    this.dirX = Math.cos(dirAngle);
+    this.dirY = Math.sin(dirAngle);
   }
 
   update(dt) {
     this.lived += dt;
+
+    // Phigros hit particles: analytic movement + alpha fade, no per-frame integration jitter.
+    // Displacement  t*(850.3997391752t^2 + 6236.3848902154t + 80.3542231806) / (6570.5817658876t^2 + 495.7977913926t + 1)
+    // Alpha         1 - t
+    // Size          s(t) = ((0.20783014t - 1.65243926)t + 1.6398785)t + 0.49884492
+    if (this.config.phigros) {
+      const base = this.config.baseColor;
+      const localTime = this.lived - this.startDelay;
+      if (localTime < 0) {
+        this.color = { r: base.r, g: base.g, b: base.b, a: 0 };
+      } else if (localTime >= this.lifetime) {
+        this.alive = false;
+        return;
+      } else {
+        const t = localTime / this.lifetime;
+        const d = t * (850.3997391752 * t * t + 6236.3848902154 * t + 80.3542231806)
+          / (6570.5817658876 * t * t + 495.7977913926 * t + 1);
+        const travel = (this.config.initialVelocity || 0) * 0.5;
+        this.position.x = this.startPosition.x + this.dirX * travel * d;
+        this.position.y = this.startPosition.y + this.dirY * travel * d;
+        const s = ((0.20783014 * t - 1.65243926) * t + 1.6398785) * t + 0.49884492;
+        this.size = this.baseSize * s;
+        this.color = { r: base.r, g: base.g, b: base.b, a: (1 - t) * base.a };
+      }
+      return;
+    }
+
     const lifeRatio = Math.min(this.lived / this.lifetime, 1);
 
     const c = this.config.colorsCurve;
@@ -155,11 +185,12 @@ class ParticleEmitter {
     this._shouldEmit = this.config.emitting;
   }
 
-  emit(pos, n) {
+  emit(pos, n, stagger) {
     this.position = pos;
     for (let i = 0; i < n; i++) {
       if (this.particlesSpawned < this.config.amount) {
         const p = new Particle(this.config, pos);
+        if (stagger) p.startDelay = i * stagger;
         this.particles.push(p);
         this.particlesSpawned++;
       }

@@ -473,15 +473,16 @@ addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
     localCoords: false,
     emissionShape: 'point',
     oneShot: true,
-    lifetime: 3,
-    lifetimeRandomness: 0.2,
+    lifetime: 0.5,
+    lifetimeRandomness: 0,
     amount: 4,
-    explosiveness: 0.5,
+    explosiveness: 1,
     emitting: true,
+    phigros: true,
     initialDirection: { x: 0, y: 0 },
     initialDirectionSpread: Math.PI * 2,
     initialVelocity: 420 * (this.scaleX || 1),
-    initialVelocityRandomness: 0.1,
+    initialVelocityRandomness: 0,
     linearAccel: 0,
     initialRotation: 0,
     initialRotationRandomness: 0,
@@ -489,7 +490,7 @@ addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
     initialAngularVelocityRandomness: 0,
     angularAccel: 0,
     angularDamping: 0,
-    size: 24 * (this.scaleX || 1),
+    size: 30 * (this.scaleX || 1),
     sizeRandomness: 0,
     blendMode: 'alpha',
     baseColor: { r: finalColor[0]/255, g: finalColor[1]/255, b: finalColor[2]/255, a: 1 },
@@ -504,7 +505,7 @@ addJudgeEffect(x, y, result, noteColor, lineRotationDeg = 0, fixCol = null) {
     shape: 'rect',
   };
   const emitter = new ParticleEmitter(particleConfig);
-  emitter.emit({ x, y }, 4);
+  emitter.emit({ x, y }, 4, 0.015);
   this.particleEmitters.push(emitter);
 
   let hitFxImg = this.hitFxImage;

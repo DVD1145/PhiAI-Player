@@ -362,7 +362,7 @@ font-family: 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif
 
   #pause-btn {
     position: fixed;
-    top: calc(26px * var(--uis, 1)); left: calc(20px * var(--uis, 1));
+    top: calc(26px * var(--uis, 1)); left: calc(30px * var(--uis, 1));
     z-index: 200;
     color: #fff;
     cursor: pointer;
@@ -409,13 +409,13 @@ font-family: 'AppFont', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif
 
   #score-display {
     position: fixed;
-    top: calc(20px * var(--uis, 1)); right: calc(24px * var(--uis, 1));
+    top: calc(20px * var(--uis, 1)); right: calc(30px * var(--uis, 1));
     z-index: 200;
     font-size: calc(36px * var(--uis, 1));
     line-height: calc(36px * var(--uis, 1));
     color: #fff;
     font-variant-numeric: tabular-nums;
-    letter-spacing: calc(1px * var(--uis, 1));
+    letter-spacing: normal;
     pointer-events: none;
     transform-origin: center;
   }
